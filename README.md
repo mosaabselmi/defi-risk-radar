@@ -8,8 +8,8 @@ An explainable **starter**, not a finished DeFi investment-grade risk system. De
 - Builds and traces an Aave V3 dependency graph with edges oriented `dependent -> dependency`. Oracle-to-feed edges use discovered on-chain source mappings when available; other edges remain modeled.
 - Optionally retrieves **real published Aave contract addresses** from the official public address-book Solidity source and **spot-price observations** from DefiLlama's free price API.
 - Reads **WETH and USDC base reserve configuration** from the Aave V3 Ethereum data provider at one Ethereum block, validating chain ID, deployed code, market relationships, ABI responses and block consistency.
-- Uses a **synthetic WETH collateral / USDC debt position**, the **sourced WETH base liquidation threshold when available** (otherwise a manual assumption), and **user-selected** price shocks/probabilities/conditional losses/exit-cost proxies.
-- Computes a simplified health factor and transparent scenario-based stay/exit comparison.
+- Uses a **synthetic WETH collateral / USDC debt position**, the **sourced WETH base liquidation threshold when available** (otherwise a manual assumption), and four explicit economic scenarios: WETH/USDC market shocks and WETH/USDC oracle-source outages.
+- Computes marked equity, scenario-specific P&L, modeled health factor and a transparent **STAY / EXIT / MONITOR** comparison with assumed execution costs.
 - Shows source provenance and makes offline vs sourced mode explicit.
 - Includes unit tests for graph traversal, parsing and arithmetic.
 
@@ -70,6 +70,22 @@ Discovery does not identify source adapters' internal dependencies, proxy implem
 Interface signatures and return order: [Aave IPoolAddressesProvider](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IPoolAddressesProvider.sol), [Aave IPoolDataProvider](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IPoolDataProvider.sol), [Aave IAaveOracle](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IAaveOracle.sol), and [Aave view contracts](https://www.aave.com/docs/aave-v3/smart-contracts/view-contracts). Function selectors were checked against Ethereum `web3_sha3` Keccak hashes, including `getPriceOracle()` (`0xfca513a8`) and `getSourceOfAsset(address)` (`0x92bf2be0`). [PublicNode endpoint](https://ethereum.publicnode.com/).
 
 The application begins **in illustrative mode**. It will never silently label demo numbers as real market data.
+
+### Incident-specific economic impact (Block 03)
+
+Economic scenario selection is separate from graph inspection. A WETH market shock affects collateral price only; a USDC market shock affects debt price only and permits either sign. Marked equity is `WETH units × WETH/USD − USDC debt units × USDC/USD`. A falling USDC price reduces this borrower's USD debt and improves equity. Market P&L is stressed equity minus base equity. Downside and favorable outcomes are reported separately, with no negative expected loss.
+
+Oracle-source outages preserve reference prices and show affected graph paths. Dollar impact, expected downside and expected favorable impact remain **unquantified** and the result is **MONITOR**. A reference health factor is not an estimate of outage damage. The sensitivity plot remains a labeled hypothetical market curve, with no selected market shock marker for outages.
+
+For market scenarios, expected downside is the **user-assumed 24h scenario probability** multiplied by conditional downside **once**. This probability is not an empirically measured incident frequency. Execution cost is `assumed aggregate traded notional × (spread + slippage + trading fee bps) / 10,000 + aggregate gas USD`. The default notional assumes gross collateral sale plus debt purchase; edit it for the intended trading legs. Repayment principal is already reflected in net equity and is not a trading fee. No executable quote, live slippage, funding verification or transaction is provided. Full collateral withdrawal requires debt repayment or another unwind first; liquidity and transaction ordering remain unverified.
+
+HF below 1 indicates **modeled liquidation eligibility**, using the sourced WETH base threshold and observed market prices. Actual Aave eligibility uses protocol oracle prices and account settings. The sourced WETH liquidation bonus is displayed separately. Optional penalty estimates require an explicitly assumed **fraction of stressed debt liquidated**. Only the incremental collateral bonus cost is added, with debt repayment capped by stressed collateral availability including the bonus. Principal repayment offsets debt reduction and is not added again as damage. The fraction is not Aave's actual close factor and no realized liquidation is guaranteed. Stressed equity excludes the separately displayed penalty; total conditional downside includes it only when explicitly estimated.
+
+**EXIT** means expected modeled downside exceeds assumed execution cost with adequate inputs; **STAY** means it does not. A price-only lower bound can justify EXIT even when incremental liquidation damage is unknown, but an unquantified liquidation penalty prevents an unsupported STAY. **MONITOR** also applies to missing/unreliable data, non-positive base equity, an already liquidation-eligible base position, zero exposure or an unjustified zero traded notional. Decisions remain conditional research comparisons, not executable trade instructions.
+
+The dashboard's explicit conservative data policy requires snapshot/price/reserve observations no older than **1 hour**, spot-price confidence at least **0.9**, and no timestamps more than **60 seconds** in the future. These thresholds are policy assumptions, not calibrated risk estimates. Demo and legacy records still show arithmetic and graphs but return MONITOR when sourced price/reserve evidence is absent. Invalid/nonfinite inputs and prices at or below **$0.00000001** are unsupported; an exact −100% shock is rejected instead of fabricating a tiny price. Existing snapshots and verified graph evidence are unchanged.
+
+Protocol interpretation: [Aave health factor and liquidations](https://aave.com/help/borrowing/liquidations), [Aave collateral withdrawals](https://aave.com/help/supplying/withdraw-tokens).
 
 ## Next hackathon milestones
 

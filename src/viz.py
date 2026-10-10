@@ -73,24 +73,33 @@ def plot_graph(g, failed):
     return fig
 
 
-def plot_health_curve(position, selected_shock):
-    shocks = list(range(-80, 31, 5))
-    health = [stress_position(position, shock).health_factor for shock in shocks]
+def plot_health_curve(position, selected_shock, asset='WETH', selected_is_scenario=True):
+    shocks = list(range(-95, 101, 5))
+    def stressed(shock):
+        return stress_position(position, shock if asset == 'WETH' else 0,
+                               shock if asset == 'USDC' else 0)
+    health = []
+    for shock in shocks:
+        try:
+            health.append(stressed(shock).health_factor)
+        except ValueError:
+            health.append(None)  # Do not fabricate values below the supported price floor.
     fig = go.Figure()
-    if all(math.isfinite(h) for h in health):
+    if any(h is not None and math.isfinite(h) for h in health):
         fig.add_trace(go.Scatter(
             x=shocks, y=health, mode='lines', name='Health factor',
             line=dict(color=TEAL, width=3), fill='tozeroy',
             fillcolor='rgba(67,207,188,0.07)',
-            hovertemplate='WETH shock: %{x}%<br>HF: %{y:.2f}<extra></extra>',
+            hovertemplate=asset + ' market shock: %{x}%<br>HF: %{y:.2f}<extra></extra>',
         ))
         fig.add_hline(y=1, line_color=RED, line_dash='dot',
                       annotation_text='HF = 1', annotation_font_color=RED,
                       annotation_position='top left')
-        selected = stress_position(position, selected_shock).health_factor
-        fig.add_trace(go.Scatter(x=[selected_shock], y=[selected],
-            mode='markers', marker=dict(size=11, color=AMBER, line=dict(color='#0d1828',width=2)),
-            name='Selected shock', hovertemplate='Selected HF: %{y:.2f}<extra></extra>'))
+        if selected_is_scenario:
+            selected = stressed(selected_shock).health_factor
+            fig.add_trace(go.Scatter(x=[selected_shock], y=[selected],
+                mode='markers', marker=dict(size=11, color=AMBER, line=dict(color='#0d1828',width=2)),
+                name='Selected shock', hovertemplate='Selected HF: %{y:.2f}<extra></extra>'))
     else:
         fig.add_annotation(text='No debt: health factor is not finite',
                            showarrow=False, font=dict(color=MUTED, size=14))
@@ -98,7 +107,7 @@ def plot_health_curve(position, selected_shock):
         height=265, margin=dict(l=5, r=10, t=5, b=20),
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         font=dict(color=INK, size=11),
-        xaxis=dict(title='Collateral price shock (%)', showgrid=True,
+        xaxis=dict(title=asset + ' market-price shock (%)', showgrid=True,
                    gridcolor='rgba(130,170,200,.11)', zeroline=False),
         yaxis=dict(title='Health factor', showgrid=True,
                    gridcolor='rgba(130,170,200,.11)', zeroline=False),

@@ -1,11 +1,15 @@
 """DeFi Risk Radar · transparent research prototype for the Belem challenge."""
 import json
+from html import escape
+from math import isfinite
 from pathlib import Path
 
+import networkx as nx
 import streamlit as st
 
 from src.dependencies import affected_by_failure, build_dependency_graph, graph_provenance
-from src.risk import Position, compare_stay_exit, stress_position
+from src.risk import (Position, Scenario, ScenarioType, ExecutionAssumptions,
+                      assess_scenario, snapshot_quality_issues)
 from src.sources import DEMO_SNAPSHOT, SourceError, fetch_market_snapshot, validate_snapshot
 from src.viz import plot_graph, plot_health_curve
 
@@ -107,7 +111,7 @@ with st.sidebar:
     st.divider()
     st.markdown('### 02 / Position')
     st.caption('Synthetic investor balances, not a connected wallet.')
-    collateral = st.number_input('WETH collateral · units', min_value=0.01, value=4.0, step=0.25)
+    collateral = st.number_input('WETH collateral · units', min_value=0.0, value=4.0, step=0.25)
     debt = st.number_input('USDC debt · units', min_value=0.0, value=6000.0, step=500.0)
     reserve_config = st.session_state.snapshot.get('reserve_configuration')
     if reserve_config:
@@ -116,25 +120,71 @@ with st.sidebar:
                    f"(on-chain snapshot, block {reserve_config['block']['number']:,}; no eMode)")
     else:
         lt = st.slider('Assumed liquidation threshold · %', 10, 95, 80)
+    bonus = ((reserve_config['reserves']['WETH']['liquidation_bonus_bps'] - 10000) / 10000
+             if reserve_config and reserve_config['reserves']['WETH']['liquidation_bonus_bps'] >= 10000
+             else None)
+    st.caption('Sourced WETH liquidation bonus · ' + (f'{bonus:.2%}' if bonus is not None else 'unavailable'))
     st.divider()
-    st.markdown('### 03 / Stress scenario')
-    incident = st.selectbox('Dependency to disrupt', [
+    st.markdown('### 03 / Economic scenario')
+    kind = ScenarioType(st.selectbox('Economic scenario', [item.value for item in ScenarioType],
+                                    key='economic_scenario'))
+    if kind.oracle_only:
+        shock, prob = 0, 0
+        st.caption('Oracle-only outage: no price shock, event loss or loss probability is inferred.')
+    else:
+        shock = st.slider(f'{kind.asset} market-price shock · %', -95, 100,
+                          -20 if kind.asset == 'WETH' else -10, step=5, key=f'{kind.asset}_shock')
+        prob = st.slider('Assumed scenario probability · 24h (%)', 0, 100, 10,
+                         key='scenario_probability')
+        st.caption('Probability is a user assumption for this single scenario, not a measured incident rate.')
+    liquidation_fraction = None
+    if not kind.oracle_only and bonus is not None:
+        if st.checkbox('Include assumed liquidation penalty', key='include_liquidation'):
+            liquidation_fraction = st.slider('Assumed debt fraction liquidated · %', 0, 100, 50,
+                                             key='liquidation_fraction') / 100
+            st.caption('Conditional assumption, not an actual close factor or guaranteed liquidation. '
+                       'Only incremental bonus cost is added to market loss.')
+    st.markdown('#### Graph inspection')
+    incident = st.selectbox('Graph component to inspect · independent of economic scenario', [
         'WETH Feed', 'USDC Feed', 'Aave Price Oracle', 'Aave Pool',
         'Ethereum', 'WETH', 'USDC',
-    ])
-    shock = st.slider('Independent WETH price shock · %', -80, 30, -20, step=5)
-    prob = st.slider('Assumed event probability · 24h (%)', 0, 100, 10, step=1)
-    severity = st.slider('Conditional loss of positive equity · %', 0, 100, 35, step=5)
-    exit_cost = st.slider('Exit cost proxy · % of equity', 0.0, 30.0, 2.0, step=0.5)
-    fee = st.number_input('Additional fixed exit fee · USD', min_value=0.0, value=10.0, step=5.0)
-    st.caption('All scenario probabilities, severity and exit costs are manual assumptions.')
+    ], key='graph_component')
+    st.caption('Graph inspection never changes the economic scenario. Market shocks do not imply an oracle malfunction.')
+    st.markdown('#### Assumed execution costs')
+    spot = st.session_state.snapshot['prices']
+    try:
+        default_notional = collateral * spot['WETH']['usd'] + debt * spot['USDC']['usd']
+        if not isfinite(default_notional) or default_notional < 0:
+            raise ValueError('Invalid position notional')
+    except (TypeError, KeyError, ValueError, OverflowError):
+        st.error('SCENARIO RESULT · MONITOR: prices or position values are invalid.')
+        st.stop()
+    notional = st.number_input('Aggregate traded notional · USD (assumption)', min_value=0.0,
+                               value=float(default_notional), step=100.0)
+    st.caption('Default assumes gross collateral sale plus debt purchase as trading legs. '
+               'Edit for the intended unwind; repayment principal is not an execution fee.')
+    spread = st.number_input('Spread · basis points (assumption)', min_value=0.0, max_value=10000.0, value=10.0)
+    slippage = st.number_input('Slippage · basis points (assumption)', min_value=0.0, max_value=10000.0, value=20.0)
+    trading_fee = st.number_input('Trading fee · basis points (assumption)', min_value=0.0, max_value=10000.0, value=5.0)
+    gas = st.number_input('Aggregate gas · USD (assumption)', min_value=0.0, value=10.0, step=5.0)
+    st.caption('Execution approximation only, not a live or executable quote. '
+               'Debt must be repaid or otherwise unwound before a full collateral withdrawal.')
 
 snapshot = st.session_state.snapshot
 sourced = snapshot.get('mode') == 'sourced'
 prices = snapshot['prices']
-p = Position(collateral, debt, prices['WETH']['usd'], prices['USDC']['usd'], lt / 100)
-s = stress_position(p, shock)
-d = compare_stay_exit(max(p.equity_usd, 0), prob, severity, exit_cost, fee)
+try:
+    p = Position(collateral, debt, prices['WETH']['usd'], prices['USDC']['usd'], lt / 100)
+    scenario = Scenario(kind, shock)
+    execution = ExecutionAssumptions(notional, spread, slippage, trading_fee, gas)
+    d = assess_scenario(p, scenario, prob, execution, liquidation_bonus=bonus,
+                        liquidation_fraction=liquidation_fraction,
+                        quality_issues=snapshot_quality_issues(snapshot))
+except (ValueError, TypeError, KeyError) as exc:
+    st.error('SCENARIO RESULT · MONITOR: invalid inputs — ' + str(exc))
+    st.stop()
+s = d.impact.stressed
+impact = d.impact
 g = build_dependency_graph(snapshot)
 affected = affected_by_failure(g, incident)
 
@@ -154,7 +204,8 @@ m1, m2, m3, m4 = st.columns(4, gap='medium')
 m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off')
 m2.metric('Borrowed value', f'${p.debt_usd:,.0f}', f'{debt:,.0f} USDC', delta_color='off')
 m3.metric('Base health factor', '∞' if p.health_factor == float('inf') else f'{p.health_factor:.2f}')
-m4.metric('Stressed health factor', '∞' if s.health_factor == float('inf') else f'{s.health_factor:.2f}',
+m4.metric('Reference HF · outage unquantified' if kind.oracle_only else 'Stressed health factor',
+          '∞' if s.health_factor == float('inf') else f'{s.health_factor:.2f}',
           delta=None if p.health_factor == float('inf') else f'{s.health_factor-p.health_factor:+.2f}',
           delta_color='normal')  # Falling health factor is bad (red), not good (green).
 
@@ -165,66 +216,101 @@ with left:
         st.markdown('<div class="section-eyebrow">01 / Position structure</div><div class="section-title">Dependency explorer</div>', unsafe_allow_html=True)
         st.plotly_chart(plot_graph(g, incident), use_container_width=True,
                         config={'displayModeBar': False})
-        st.markdown('<div class="legend"><span class="legend-dot" style="background:#ff7185;margin-left:0"></span>Selected disruption<span class="legend-dot" style="background:#f4bc67"></span>Upstream dependents<span class="legend-dot" style="background:#43cfbc"></span>Position</div>', unsafe_allow_html=True)
+        st.markdown('<div class="legend"><span class="legend-dot" style="background:#ff7185;margin-left:0"></span>Graph focus<span class="legend-dot" style="background:#f4bc67"></span>Upstream dependents<span class="legend-dot" style="background:#43cfbc"></span>Position</div>', unsafe_allow_html=True)
         st.caption('A → B means A depends on B. Oracle-to-feed edges use discovered source mappings when available; all other relationships remain modeled. See Sources & evidence for dated verification.')
 with right:
     with st.container(border=True):
         st.markdown('<div class="section-eyebrow">02 / Failure trace</div><div class="section-title">Incident propagation</div>', unsafe_allow_html=True)
-        st.markdown(f'**Selected component:** {incident}')
+        st.markdown(f'**Independent graph inspection:** {incident}')
         st.markdown('**Potentially affected:** ' + (', '.join(affected) or 'None identified'))
         if 'Position' in affected:
             st.caption('A dependency path reaches the position. Reachability does not establish a realized financial loss.')
         else:
             st.caption('No dependency path reaches the position in the current graph.')
-        st.divider()
-        st.markdown('<div class="section-eyebrow">03 / Portfolio response</div><div class="section-title">Stay or exit?</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2, gap='small')
-        c1.metric('Expected loss · 24h', f'${d.stay_expected_loss_usd:,.0f}')
-        c2.metric('Assumed exit cost', f'${d.exit_cost_usd:,.0f}')
-        if p.equity_usd <= 0:
-            recommendation = 'NOT EVALUATED'
-            reason = 'Non-positive equity: this simplified equity-loss model is not applicable.'
-        elif 'Position' not in affected:
-            recommendation = 'NOT EVALUATED'
-            reason = 'No modeled dependency path from this failure to the position.'
+        if kind.oracle_only:
+            source_node = kind.asset + ' Feed'
+            paths = list(nx.all_simple_paths(g, 'Position', source_node))
+            st.markdown(f'**Economic outage scenario:** {source_node}')
+            st.markdown('**Affected paths:** ' + ('; '.join(' → '.join(path) for path in paths)
+                                                or 'No configured direct-source path identified.'))
+            st.caption('These paths combine source evidence and modeled relationships. '
+                       'No realized price change, dollar loss or liquidation is inferred from an outage.')
         else:
-            recommendation = d.recommendation
-            reason = ('Assumed 24h expected loss exceeds the exit-cost proxy.' if recommendation == 'EXIT'
-                      else 'Assumed exit cost is at least as large as modeled expected loss.')
+            st.caption('Graph inspection is separate from this market shock; no oracle malfunction is assumed.')
+        st.divider()
+        st.markdown('<div class="section-eyebrow">03 / Portfolio response</div><div class="section-title">Stay, exit or monitor?</div>', unsafe_allow_html=True)
+        c1, c2 = st.columns(2, gap='small')
+        c1.metric('Modeled expected downside · 24h', 'Unquantified' if d.expected_downside_usd is None
+                  else f'${d.expected_downside_usd:,.0f}')
+        c2.metric('Assumed exit cost', f'${d.exit_cost_usd:,.0f}')
+        recommendation, reason = d.recommendation, d.rationale
         cls = ('decision-exit' if recommendation == 'EXIT' else
                'decision-stay' if recommendation == 'STAY' else 'decision-unknown')
-        st.markdown(f'<div class="decision {cls}"><strong>SCENARIO RESULT · {recommendation}</strong><span>{reason}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="decision {cls}"><strong>SCENARIO RESULT · {recommendation}</strong><span>{escape(reason)}</span></div>', unsafe_allow_html=True)
         if d.breakeven_probability is None:
-            break_even = 'Undefined (zero assumed conditional loss)'
+            break_even = 'Not applicable (unquantified or zero downside)'
         elif d.breakeven_probability > 1:
-            break_even = '>100% · unreachable under assumed loss severity'
+            break_even = '>100% · unreachable under this conditional downside'
         else:
             break_even = f'{100*d.breakeven_probability:.1f}%'
-        st.markdown(f'**Break-even event probability:** {break_even}')
-        st.caption('Important: the loss estimate is an independent hypothetical scenario; it is not inferred from the selected component failure. No executable exit quote is available.')
+        st.markdown(f'**Break-even 24h scenario probability:** {break_even}')
+        st.caption('This comparison is conditional on the entered execution assumptions. Full withdrawal requires '
+                   'repayment or an unwind of Aave debt first; available funding, liquidity and transaction ordering are not verified.')
+        for issue in d.issues:
+            st.caption('Input quality: ' + issue)
 
 st.write('')
 tab_stress, tab_sources, tab_method = st.tabs(['Stress-test diagnostics', 'Sources & evidence', 'Model scope & limitations'])
 with tab_stress:
     a, b = st.columns([1.25, 1], gap='large')
     with a:
-        st.markdown('#### Health factor sensitivity')
-        st.plotly_chart(plot_health_curve(p, shock), use_container_width=True,
+        st.markdown('#### Market-price health factor sensitivity')
+        st.plotly_chart(plot_health_curve(p, shock, asset=kind.asset,
+                                          selected_is_scenario=not kind.oracle_only), use_container_width=True,
                         config={'displayModeBar': False})
+        if kind.oracle_only:
+            st.info('Oracle outage: plotted market sensitivity is illustrative only. Reference prices and HF are unchanged observations, not a prediction of outage impact.')
         if s.debt_usd == 0:
             st.info('No debt: liquidation eligibility is not applicable in this model.')
         elif s.health_factor < 1:
-            st.error(f'Stressed HF = {s.health_factor:.3f} < 1. This signals liquidation eligibility, not guaranteed liquidation.')
+            st.error(f'Modeled HF = {s.health_factor:.3f} < 1. This signals modeled liquidation eligibility, not guaranteed liquidation. Aave uses its own oracle prices.')
         else:
             st.success(f'Stressed HF = {s.health_factor:.3f} ≥ 1. No modeled liquidation eligibility under this stress.')
     with b:
-        st.markdown('#### Decision arithmetic')
-        st.code(f'Base position equity    ${p.equity_usd:,.2f}\n'
-                f'Conditional loss proxy ${max(p.equity_usd,0)*severity/100:,.2f}\n'
-                f'Assumed probability     {prob}% in 24h\n'
-                f'Expected loss           ${d.stay_expected_loss_usd:,.2f}\n'
-                f'Exit cost proxy         ${d.exit_cost_usd:,.2f}', language='text')
-        st.caption('Price-shock and event-probability controls are independent. An oracle outage does not automatically imply the entered price shock.')
+        st.markdown('#### Financial-impact breakdown')
+        def money(value):
+            return 'Unquantified' if value is None else f'${value:,.2f}'
+        st.code(f'Economic scenario        {kind.value}\n'
+                f'Base collateral          {money(p.collateral_usd)}\n'
+                f'Base USDC debt           {money(p.debt_usd)}\n'
+                f'Base equity              {money(p.equity_usd)}\n'
+                f'{"Reference" if kind.oracle_only else "Stressed"} equity         {money(s.equity_usd)}\n'
+                f'Market P&L               {money(impact.pnl_usd)}\n'
+                f'Collateral market P&L    {money(None if kind.oracle_only else s.collateral_usd - p.collateral_usd)}\n'
+                f'Debt value change        {money(None if kind.oracle_only else s.debt_usd - p.debt_usd)}\n'
+                f'Price downside           {money(impact.price_downside_usd)}\n'
+                f'Assumed bonus penalty    {money(impact.liquidation_penalty_usd)}\n'
+                f'Conditional downside     {money(impact.conditional_downside_usd)}\n'
+                f'Conditional favorable    {money(impact.favorable_usd)}\n'
+                f'Expected downside · 24h  {money(d.expected_downside_usd)}\n'
+                f'Expected favorable · 24h {money(d.expected_favorable_usd)}', language='text')
+        if not kind.oracle_only:
+            st.caption(f'Expected downside = {prob}% assumed scenario probability × conditional downside, applied exactly once. '
+                       'A USDC price decline reduces the USD value of this debt; a rise increases it.')
+        if impact.liquidation_eligible and not kind.oracle_only and impact.liquidation_penalty_usd is None:
+            st.warning('Liquidation damage is unquantified. Conditional and expected downside shown are price-only lower bounds.')
+        if liquidation_fraction is not None:
+            st.caption(f'Assumed fraction of stressed debt liquidated: {liquidation_fraction:.0%}. '
+                       'Incremental bonus cost only; principal repayment is offset by debt reduction. '
+                       'Collateral availability caps the estimate. This is not guaranteed damage or a liquidation execution simulation.')
+        st.caption('Sourced WETH liquidation bonus: ' + (f'{bonus:.2%}' if bonus is not None else 'unavailable'))
+        st.markdown('#### Execution-cost components · assumptions')
+        st.dataframe([{'Component': name, 'USD': value} for name, value in execution.components.items()], hide_index=True)
+        st.caption(f'Aggregate assumed trade notional: ${notional:,.2f}; cost = notional × '
+                   f'({spread:g} + {slippage:g} + {trading_fee:g}) / 10,000 + ${gas:,.2f} gas. '
+                   'No live slippage or executable quote is supplied.')
+        st.caption('Decision data policy: prices and reserve block at most 1h old, spot confidence ≥0.9, '
+                   'future timestamp tolerance 60s. Demo, missing reserve data and unreliable observations return MONITOR.')
         st.caption('The calculation uses the sourced WETH base threshold when available, otherwise a manual assumption. Aave eMode, account-specific rules, liquidation execution and real exit liquidity remain outside this simplified calculation.')
 with tab_sources:
     st.markdown('#### Dependency evidence · model versus verified data')
@@ -288,8 +374,10 @@ with tab_method:
 - **Graph discovery:** oracle-to-feed mappings are discovered on-chain when block evidence is present; other relationships remain modeling rules. A path may combine verified and modeled edges.
 - **Prices:** in sourced mode, DefiLlama spot prices are **not** Aave's native oracle prices.
 - **Health factor:** simplified single-collateral model using the sourced WETH base threshold when available, otherwise an assumption; no account-specific eMode.
-- **Loss probability and severity:** user-provided assumptions, not empirical incident estimates.
-- **Exit costs:** assumed proxy on positive equity plus a fixed fee, not a quote for executable trades.
+- **Economic scenarios:** asset-specific market shocks change marked prices; oracle outages do not imply price crashes or quantified dollar losses.
+- **Loss probability:** user-assumed probability over 24h applied once to conditional downside; favorable outcomes are separate.
+- **Liquidation:** eligibility is modeled; optional bonus penalty requires an assumed debt fraction and does not imply guaranteed execution.
+- **Exit costs:** assumed traded notional × spread/slippage/fee basis points plus gas; not an executable quote. Debt repayment or unwind precedes full withdrawal.
 - **Recommendation:** a sensitivity comparison for research, not financial advice or an automated trading signal.
 ''')
 

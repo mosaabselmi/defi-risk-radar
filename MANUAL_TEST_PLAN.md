@@ -5,35 +5,39 @@ Do this *after* `python -m pytest -q` succeeds. The model is a research demonstr
 ## Launch
 
 ```powershell
-python -m pip install -r requirements.txt
-python -m pytest -q
-python -m streamlit run app.py
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
 Expected: browser opens at `http://localhost:8501`; page title is "DeFi Risk Radar"; no red Python exceptions. Sidebar and main area are both readable. Resize browser to ~1280px width and check labels don't get clipped.
 
 ## UI / model baseline
 
-Keep illustrative mode and defaults: 4 WETH, 6,000 USDC debt, $2,500/WETH and $1/USDC, liquidation threshold 80%, -20% shock, event probability 10%, conditional loss 35%, exit cost 2% of equity, $10 fixed fee.
+Keep illustrative mode: 4 WETH, 6,000 USDC debt, $2,500/WETH, $1/USDC, assumed threshold 80%, WETH market shock −20%, assumed 24h probability 10%. Execution assumptions: $16,000 aggregate traded notional, spread 10 bps, slippage 20 bps, fee 5 bps, gas $10.
 
-- [ ] Base collateral **$10,000**, debt **$6,000**.
-- [ ] Base health factor **1.333…**, stressed health factor **1.0667…**.
-- [ ] Stressed health-factor **negative delta is red**, not green.
-- [ ] Selected failure WETH Feed reaches **Aave Price Oracle, Aave Pool and Position** (not WETH token).
-- [ ] Arrowheads on dependency graph point **dependent → dependency**.
-- [ ] Expected loss **$140**, exit cost **$90**, recommendation **EXIT**, break-even event probability **~6.4%**.
-- [ ] Data mode explicitly says **illustrative** and modeled relationships are not labeled as live on-chain verified.
+- [ ] Base collateral $10,000, debt $6,000, equity $4,000; stressed equity $2,000 and market P&L −$2,000.
+- [ ] Base HF 1.333…, stressed HF 1.0667…; falling HF delta is red.
+- [ ] Price-only expected downside $200; execution components $16 + $32 + $8 + $10 = $66.
+- [ ] Demo result is MONITOR because inputs are illustrative. No live data is implied.
+- [ ] Graph arrows remain dependent → dependency, with source evidence preserved.
 
 ## Scenario behavior
 
-- [ ] Set event probability to **0%**. Expected scenario loss becomes **$0**, and recommendation is **STAY** (positive exit cost).
-- [ ] Restore to **10%**, raise assumed exit-cost percentage to **20%**. Recommendation becomes **STAY**.
-- [ ] Set WETH market shock to **-30%**. Stressed health factor falls below **1** and the liquidation eligibility warning is **red**.
-- [ ] Set WETH market shock to **0%**. Base and stressed health factors are equal.
-- [ ] Set debt to **0 USDC**. Both health factors show infinity, diagnostics explain that no borrowing liquidation is modeled, and health curve handles the case without crashing.
-- [ ] Restore debt to 6000 and reduce WETH collateral to **1 WETH**. Equity is negative, so the app says **NOT EVALUATED**, not a confident STAY recommendation.
-- [ ] Try different failed components and verify the trace varies. The severity and price-shock sliders must still be labeled independent assumptions, not incident-derived forecasts.
-- [ ] At 100% conditional loss and high cost, check break-even does not show impossible values as ordinary reachable probabilities.
+- [ ] Load a fresh sourced snapshot with adequate price confidence and reserve evidence. The same decision arithmetic may return EXIT when expected downside exceeds assumed cost; stale snapshots return MONITOR with reasons.
+- [ ] Choose a −30% WETH market shock. With the recent $2,494/WETH, ~$1/USDC and 83% threshold, base HF is ~1.38, stressed HF ~0.97 and price loss ~$2,993 before penalties.
+- [ ] Confirm liquidation eligibility is separate from the STAY/EXIT comparison. The sourced bonus is shown separately; penalty stays unquantified unless its checkbox and debt-fraction assumption are entered.
+- [ ] Enable a 50% assumed debt liquidation fraction with a sourced 5% bonus. Bonus penalty is stressed debt × 50% × 5%, capped by collateral availability. Repayment principal is not counted as another loss.
+- [ ] Choose USDC market shock −10%. WETH value stays unchanged; debt USD falls, equity and HF improve. Downside is zero and favorable impact is positive.
+- [ ] Change USDC shock to +10%. WETH stays unchanged; debt USD rises and equity/HF decline.
+- [ ] Change graph inspection without changing scenario. Financial values and rationale stay the same.
+- [ ] Select each oracle-source outage. Reference prices/HF remain unchanged, dollar loss is unquantified, MONITOR is returned, and relevant affected paths appear. No market-price shock control or market crash is implied.
+- [ ] Set probability to 0% in a market scenario with no unquantified liquidation exposure. Expected downside becomes zero; with adequate inputs, comparison returns STAY. Probability scales conditional downside once and does not scale exit cost.
+- [ ] Double the assumed traded notional. Spread, slippage and fee costs double; gas is unchanged. Cost does not use equity.
+- [ ] Set debt to zero: HF infinity, no liquidation eligibility; USDC price shocks create no debt P&L.
+- [ ] Set collateral to zero, or both balances to zero: no crash; unsupported/unfunded position returns MONITOR.
+- [ ] Non-positive base equity and already liquidation-eligible base positions return MONITOR with execution uncertainty.
+- [ ] Load stale/legacy snapshots: dated evidence and arithmetic remain available, but missing/stale decision inputs return MONITOR.
+- [ ] Check every tab for tracebacks. Invalid/nonfinite prices and assumptions must not create confident recommendations.
 
 ## Evidence / live data
 

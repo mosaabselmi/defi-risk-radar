@@ -1,6 +1,7 @@
 import math
 import pytest
-from src.risk import Position, stress_position, compare_stay_exit
+from src.risk import (Position, stress_position, Scenario, ScenarioType,
+                      ExecutionAssumptions, assess_scenario, scenario_impact)
 
 
 def test_health_factor_and_shock():
@@ -16,26 +17,32 @@ def test_no_debt():
 
 
 def test_expected_loss_and_breakeven():
-    result = compare_stay_exit(4000, 20, 50, 2, 10)
-    assert result.stay_expected_loss_usd == pytest.approx(400)
+    result = assess_scenario(Position(4, 6000, 2500, 1, .8),
+                             Scenario(ScenarioType.WETH_MARKET, -20), 20,
+                             ExecutionAssumptions(16000, 10, 30, 10, 10))
+    assert result.expected_downside_usd == pytest.approx(400)
     assert result.exit_cost_usd == pytest.approx(90)
     assert result.breakeven_probability == pytest.approx(90/2000)
     assert result.recommendation == 'EXIT'
 
 
 def test_low_prob_means_stay():
-    assert compare_stay_exit(4000, 1, 50, 2, 10).recommendation == 'STAY'
+    assert assess_scenario(Position(4, 6000, 2500, 1, .8),
+                           Scenario(ScenarioType.WETH_MARKET, -20), 1,
+                           ExecutionAssumptions(16000, 10, 30, 10, 10)).recommendation == 'STAY'
 
 
 def test_zero_loss_breakeven_is_none():
-    assert compare_stay_exit(4000, 25, 0, 3).breakeven_probability is None
+    assert assess_scenario(Position(4, 6000, 2500, 1, .8), Scenario(ScenarioType.WETH_MARKET, 0),
+                           25, ExecutionAssumptions(16000, 10, 30, 10, 10)).breakeven_probability is None
 
 
 def test_invalid_data():
     with pytest.raises(ValueError):
         Position(1, -1, 2000, 1, .8)
     with pytest.raises(ValueError):
-        compare_stay_exit(1000, 101, 20, 2)
+        assess_scenario(Position(4, 6000, 2500, 1, .8), Scenario(ScenarioType.WETH_MARKET, -20),
+                         101, ExecutionAssumptions(16000, 10, 30, 10, 10))
 
 
 def test_health_factor_exact_boundary():
@@ -44,8 +51,9 @@ def test_health_factor_exact_boundary():
 
 
 def test_expected_loss_equals_cost_keeps_stay():
-    result = compare_stay_exit(1000, 10, 20, 2, 0)
-    assert result.stay_expected_loss_usd == pytest.approx(result.exit_cost_usd)
+    result = assess_scenario(Position(4, 6000, 2500, 1, .8), Scenario(ScenarioType.WETH_MARKET, -20),
+                             10, ExecutionAssumptions(20000, 50, 40, 10, 0))
+    assert result.expected_downside_usd == pytest.approx(result.exit_cost_usd)
     assert result.recommendation == 'STAY'
 
 
