@@ -1,29 +1,117 @@
 {
   "mode": "sourced",
-  "retrieved_at": "2026-10-08T22:32:26.863533+00:00",
+  "retrieved_at": "2026-10-10T13:03:00.318688+00:00",
   "network": "Ethereum mainnet",
   "protocol": "Aave V3",
   "registry_source": "https://raw.githubusercontent.com/aave-dao/aave-address-book/main/src/AaveV3Ethereum.sol",
+  "registry_sha256": "bfffd1a5148baa79875cacfd9ea340811be16415ddb9222bd35fc942d6c0a18b",
   "price_source": "https://coins.llama.fi/prices/current/ethereum:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  "data_limitations": "Addresses come from a published registry, not direct on-chain calls. Prices come from DefiLlama, not the Aave protocol oracle. User holdings and liquidation threshold remain illustrative.",
+  "data_limitations": "Addresses come from a published registry, not direct on-chain calls. Prices come from DefiLlama, not the Aave protocol oracle. Base reserve configuration was read on-chain at the recorded block. Holdings, graph edges and scenario outcomes remain modeled; eMode is not modeled.",
   "addresses": {
     "POOL": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
     "ORACLE": "0x54586bE62E3c3580375aE3723C145253060Ca0C2",
     "WETH_UNDERLYING": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "USDC_UNDERLYING": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "WETH_ORACLE": "0x5424384B256154046E9667dDFaaa5e550145215e",
-    "USDC_ORACLE": "0x3f73F03aa83B2A48ed27E964eD0fDb590332095B"
+    "USDC_ORACLE": "0x3f73F03aa83B2A48ed27E964eD0fDb590332095B",
+    "POOL_ADDRESSES_PROVIDER": "0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e",
+    "AAVE_PROTOCOL_DATA_PROVIDER": "0x0a16f2FCC0D44FaE41cc54e079281D84A363bECD"
   },
   "prices": {
     "WETH": {
-      "usd": 2471.9526522007445,
-      "timestamp": 1791498718,
+      "usd": 2494.917380066237,
+      "timestamp": 1791637319,
       "confidence": 0.99
     },
     "USDC": {
-      "usd": 0.9996384143552701,
-      "timestamp": 1791498718,
+      "usd": 0.9997153478018441,
+      "timestamp": 1791637301,
       "confidence": 0.99
     }
+  },
+  "reserve_configuration": {
+    "chain_id": 1,
+    "block": {
+      "number": 26162205,
+      "hash": "0x5deac4dde0fe35d3e527bcbc962659e9deeed2081f658b8a363dfaba80305bca",
+      "timestamp": 1791637367
+    },
+    "addresses_provider": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
+    "pool": "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+    "data_provider": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
+    "rpc_host": "ethereum-rpc.publicnode.com",
+    "retrieved_at": "2026-10-10T13:03:00.318688+00:00",
+    "reserves": {
+      "WETH": {
+        "underlying_address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "decimals": 18,
+        "ltv_bps": 8050,
+        "liquidation_threshold_bps": 8300,
+        "liquidation_bonus_bps": 10500,
+        "reserve_factor_bps": 1500,
+        "usage_as_collateral_enabled": true,
+        "borrowing_enabled": true,
+        "stable_borrow_rate_enabled": false,
+        "is_active": true,
+        "is_frozen": false
+      },
+      "USDC": {
+        "underlying_address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "decimals": 6,
+        "ltv_bps": 7500,
+        "liquidation_threshold_bps": 7800,
+        "liquidation_bonus_bps": 10450,
+        "reserve_factor_bps": 1000,
+        "usage_as_collateral_enabled": true,
+        "borrowing_enabled": true,
+        "stable_borrow_rate_enabled": false,
+        "is_active": true,
+        "is_frozen": false
+      }
+    },
+    "calls": [
+      {
+        "to": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
+        "signature": "getPool()",
+        "data": "0x026b1d5f",
+        "block_tag": "0x18f341d",
+        "result": "0x00000000000000000000000087870bca3f3fd6335c3f4ce8392d69350b4fa4e2"
+      },
+      {
+        "to": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
+        "signature": "getPoolDataProvider()",
+        "data": "0xe860accb",
+        "block_tag": "0x18f341d",
+        "result": "0x0000000000000000000000000a16f2fcc0d44fae41cc54e079281d84a363becd"
+      },
+      {
+        "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
+        "signature": "ADDRESSES_PROVIDER()",
+        "data": "0x0542975c",
+        "block_tag": "0x18f341d",
+        "result": "0x0000000000000000000000002f39d218133afab8f2b819b1066c7e434ad94e9e"
+      },
+      {
+        "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
+        "signature": "POOL()",
+        "data": "0x7535d246",
+        "block_tag": "0x18f341d",
+        "result": "0x00000000000000000000000087870bca3f3fd6335c3f4ce8392d69350b4fa4e2"
+      },
+      {
+        "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
+        "signature": "getReserveConfigurationData(address)",
+        "data": "0x3e150141000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "block_tag": "0x18f341d",
+        "result": "0x00000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000001f72000000000000000000000000000000000000000000000000000000000000206c000000000000000000000000000000000000000000000000000000000000290400000000000000000000000000000000000000000000000000000000000005dc00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+      },
+      {
+        "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
+        "signature": "getReserveConfigurationData(address)",
+        "data": "0x3e150141000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "block_tag": "0x18f341d",
+        "result": "0x00000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000001d4c0000000000000000000000000000000000000000000000000000000000001e7800000000000000000000000000000000000000000000000000000000000028d200000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
+      }
+    ]
   }
 }
