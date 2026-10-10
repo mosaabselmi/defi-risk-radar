@@ -5,6 +5,8 @@ prove the *current configured* contract-to-contract dependencies on-chain.
 """
 import networkx as nx
 
+from src.sources import validate_snapshot
+
 
 NODES = [
     ('Position', 'hypothetical investor position'),
@@ -17,8 +19,8 @@ NODES = [
     ('Ethereum', 'settlement network'),
 ]
 
-# Each edge is an explicit modeling assumption. Actual deployed feed
-# configurations must be independently verified with on-chain oracle calls.
+# Default modeling rules for demo/legacy records. Oracle-to-feed edges are
+# replaced by the discovered mappings when validated on-chain evidence exists.
 LINKS = [
     ('Position', 'Aave Pool', 'uses lending market'),
     ('Position', 'WETH', 'collateral exposure'),
@@ -36,9 +38,17 @@ def build_dependency_graph(snapshot: dict) -> nx.DiGraph:
     g = nx.DiGraph()
     known = snapshot.get('addresses', {})
     sourced = snapshot.get('mode') == 'sourced' and bool(known)
+    config = snapshot.get('reserve_configuration', {})
+    if not isinstance(config, dict):
+        validate_snapshot(snapshot)
+    discovery = config.get('oracle_sources')
+    if 'oracle_sources' in config:
+        validate_snapshot(snapshot)
     for node, kind in NODES:
         g.add_node(node, kind=kind)
     for src, dep, relation in LINKS:
+        if discovery is not None and src == 'Aave Price Oracle' and dep in ('WETH Feed', 'USDC Feed'):
+            continue
         g.add_edge(src, dep, relation=relation,
                    provenance='Modeled link; addresses from published registry' if sourced
                    else 'Illustrative modeling rule',
@@ -50,6 +60,28 @@ def build_dependency_graph(snapshot: dict) -> nx.DiGraph:
     }
     for node, key in contract_map.items():
         g.nodes[node]['contract_address'] = known.get(key)
+    if discovery is not None:
+        block = config['block']
+        g.nodes['Aave Price Oracle']['contract_address'] = discovery['oracle_address']
+        for asset in ('WETH', 'USDC'):
+            feed = asset + ' Feed'
+            source = discovery['sources'][asset]['source_address']
+            configured = int(source, 16) != 0
+            g.nodes[feed].update(
+                contract_address=source if configured else None,
+                kind='configured oracle source' if configured else 'no configured direct oracle source',
+            )
+            if configured:
+                g.add_edge('Aave Price Oracle', feed,
+                           relation=f'configured {asset} source via getSourceOfAsset(address)',
+                           provenance=f"On-chain snapshot · Ethereum block {block['number']} · {block['hash']} · "
+                                      f"oracle {discovery['oracle_address']} · source {source}",
+                           verified_onchain=True, chain_id=config['chain_id'],
+                           block_number=block['number'], block_hash=block['hash'],
+                           block_timestamp=block['timestamp'], retrieved_at=config['retrieved_at'],
+                           rpc_host=config['rpc_host'], oracle_address=discovery['oracle_address'],
+                           source_address=source, underlying_address=discovery['sources'][asset]['underlying_address'],
+                           call_evidence=discovery['calls'][2 if asset == 'WETH' else 3])
     return g
 
 

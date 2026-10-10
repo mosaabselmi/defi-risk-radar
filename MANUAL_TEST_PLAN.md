@@ -37,10 +37,14 @@ Keep illustrative mode and defaults: 4 WETH, 6,000 USDC debt, $2,500/WETH and $1
 
 ## Evidence / live data
 
-- [ ] Open **Sources & evidence** tab. It shows relations marked **modeled**, not "verified on chain".
+- [ ] Open **Sources & evidence** tab in demo mode. All relations are marked modeled. After a sourced refresh, only the oracle-to-feed mappings should show on-chain block evidence; all other relationships remain modeled.
 - [ ] Click **Fetch public data** with a working internet connection. Verify price and address records are displayed, retrieval date is shown, and a `data/latest_source_snapshot.json` file is created (network availability permitting).
 - [ ] Inspect saved JSON and confirm prices are positive, contract addresses have 40 hexadecimal digits and timestamps are present. Confirm both assets appear in `reserve_configuration.reserves`, every raw call uses the same block tag, and block number/hash/timestamp are recorded.
 - [ ] Verify the Sources tab displays both reserve configurations. Compare the raw responses at the recorded block with the configured Ethereum RPC, not with unpinned latest values.
+- [ ] Verify both configured source addresses and the verified Aave oracle appear in the Sources tab. The oracle-source call tags must match the enclosing reserve block. Confirm source addresses come from `getSourceOfAsset(address)`, not just the registry feed references.
+- [ ] Confirm graph direction is `Aave Price Oracle -> WETH Feed` / `USDC Feed`. Each configured feed disruption reaches the oracle, pool and position, while the token node is not affected by feed failure.
+- [ ] Load a reserve-only legacy snapshot lacking `oracle_sources`; the graph should retain modeled source edges. A malformed new oracle record must be rejected without replacing the selected snapshot.
+- [ ] A zero source observation should have no oracle-to-feed edge for that asset and no claimed direct source; fallback discovery remains outside this version.
 - [ ] Confirm the sidebar displays the sourced WETH base threshold instead of the assumed-threshold slider. Health factor uses WETH's threshold divided by 10,000; USDC's collateral threshold does not enter this WETH-collateral model.
 - [ ] Confirm liquidation bonus is displayed as the extra percentage: raw `10500` means 5%. Reserve flags are observations, not proof that an account can borrow or liquidate.
 - [ ] Click **Load saved source snapshot**. It loads without an internet connection, and the banner still identifies the data as a dated *public-source snapshot*, not live on-chain verification.
@@ -60,7 +64,7 @@ Keep illustrative mode and defaults: 4 WETH, 6,000 USDC debt, $2,500/WETH and $1
 
 ## Interpretation notes
 
-- Published Aave registry addresses are *not* proof of current oracle configuration; modeled dependency edges remain unverified.
+- Published registry addresses alone are not proof of configured oracle sources. Only direct source mappings with recorded on-chain evidence are marked verified; remaining graph relationships and propagation assumptions remain modeled.
 - DefiLlama spot prices are not Aave's oracle answer.
 - WETH's base liquidation threshold comes from the recorded Ethereum block when reserve configuration is present; demo and legacy snapshots use a manual assumption. eMode and actual account settings are not modeled. Loss probability remains hypothetical.
 - The STAY/EXIT scenario model is not a real investment recommendation.

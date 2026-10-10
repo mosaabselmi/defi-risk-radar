@@ -26,13 +26,15 @@ REQUIRED = (
 DEFAULT_ETH_RPC_URL = 'https://ethereum-rpc.publicnode.com'
 # First four bytes of Ethereum Keccak-256(signature), verified via web3_sha3.
 # Interfaces: aave-dao/aave-v3-origin/src/contracts/interfaces/
-# IPoolAddressesProvider.sol and IPoolDataProvider.sol.
+# IPoolAddressesProvider.sol, IPoolDataProvider.sol and IAaveOracle.sol.
 SELECTORS = {
     'getPool()': '0x026b1d5f',
     'getPoolDataProvider()': '0xe860accb',
     'ADDRESSES_PROVIDER()': '0x0542975c',
     'POOL()': '0x7535d246',
     'getReserveConfigurationData(address)': '0x3e150141',
+    'getPriceOracle()': '0xfca513a8',
+    'getSourceOfAsset(address)': '0x92bf2be0',
 }
 ASSETS = {
     'WETH': ('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', 18),
@@ -67,11 +69,19 @@ def _address(value: str) -> str:
     return value.lower()
 
 
-def _decode_address(raw: str) -> str:
+def _decode_address(raw: str, allow_zero: bool = False) -> str:
     word = _words(raw, 1)[0]
     if word >= 2 ** 160:
         raise SourceError('Invalid ABI address padding')
+    if word == 0 and allow_zero:
+        return '0x' + '0' * 40
     return _address(f'0x{word:040x}')
+
+
+def _contract_code(code: str) -> str:
+    if not isinstance(code, str) or not re.fullmatch(r'0x(?:[0-9a-fA-F]{2})+', code):
+        raise SourceError('Expected deployed contract code at snapshot block')
+    return code
 
 
 def _quantity(raw: str) -> int:
@@ -99,7 +109,7 @@ def parse_reserve_configuration(raw: str, asset: str) -> dict[str, Any]:
 
 def fetch_reserve_configuration(addresses: dict[str, str], session=None,
                                 rpc_url: str | None = None) -> dict[str, Any]:
-    """Read both reserves at one block; reject reorgs and market mismatches."""
+    """Read reserves and oracle sources at one block; reject inconsistent evidence."""
     client = session or requests
     endpoint = rpc_url if rpc_url is not None else os.getenv('ETH_RPC_URL', DEFAULT_ETH_RPC_URL)
     try:
@@ -157,9 +167,7 @@ def fetch_reserve_configuration(addresses: dict[str, str], session=None,
         return raw
 
     def contract(target):
-        code = rpc('eth_getCode', [target, tag])
-        if not isinstance(code, str) or not re.fullmatch(r'0x(?:[0-9a-fA-F]{2})+', code):
-            raise SourceError('Expected deployed contract code at snapshot block')
+        return _contract_code(rpc('eth_getCode', [target, tag]))
 
     try:
         provider = _address(addresses['POOL_ADDRESSES_PROVIDER'])
@@ -182,6 +190,22 @@ def fetch_reserve_configuration(addresses: dict[str, str], session=None,
             raw = call(data_provider, 'getReserveConfigurationData(address)', underlying[2:].zfill(64))
             reserves[asset] = {'underlying_address': underlying,
                                **parse_reserve_configuration(raw, asset)}
+        # Retain the original six reserve calls for compatibility with older snapshots.
+        oracle = _decode_address(call(provider, 'getPriceOracle()'))
+        if oracle != _address(addresses['ORACLE']):
+            raise SourceError('On-chain price oracle differs from published registry')
+        oracle_code = contract(oracle)
+        if _decode_address(call(oracle, 'ADDRESSES_PROVIDER()')) != provider:
+            raise SourceError('Price oracle belongs to a different Aave market')
+        sources = {}
+        for asset in ASSETS:
+            underlying = reserves[asset]['underlying_address']
+            raw = call(oracle, 'getSourceOfAsset(address)', underlying[2:].zfill(64))
+            source = _decode_address(raw, allow_zero=True)
+            sources[asset] = {
+                'underlying_address': underlying, 'source_address': source,
+                'source_code': contract(source) if int(source, 16) else None,
+            }
     except (KeyError, TypeError) as exc:
         raise SourceError('Incomplete reserve registry data') from exc
     if block_header(rpc('eth_getBlockByNumber', [tag, False]), block['number']) != block:
@@ -192,7 +216,11 @@ def fetch_reserve_configuration(addresses: dict[str, str], session=None,
         # Host only: never persist RPC URL userinfo, path or query credentials.
         'rpc_host': parsed_url.hostname,
         'retrieved_at': datetime.now(timezone.utc).isoformat(),
-        'reserves': reserves, 'calls': evidence,
+        'reserves': reserves, 'calls': evidence[:6],
+        'oracle_sources': {
+            'oracle_address': oracle, 'oracle_code': oracle_code,
+            'sources': sources, 'calls': evidence[6:],
+        },
     }
 
 
@@ -254,6 +282,43 @@ def validate_snapshot(snapshot: dict[str, Any]) -> None:
             decoded = parse_reserve_configuration(record['result'], asset)
             if any(type(reserve[k]) is not type(v) or reserve[k] != v for k, v in decoded.items()):
                 raise SourceError('Saved configuration differs from raw contract response')
+        if 'oracle_sources' in config:
+            discovery = config['oracle_sources']
+            oracle = _address(discovery['oracle_address'])
+            if oracle != _address(known['ORACLE']):
+                raise SourceError('Saved oracle market mismatch')
+            _contract_code(discovery['oracle_code'])
+            oracle_calls = discovery['calls']
+            if not isinstance(oracle_calls, list) or len(oracle_calls) != 4:
+                raise SourceError('Incomplete saved oracle evidence')
+            expected = [
+                (config['addresses_provider'], 'getPriceOracle()', '', oracle),
+                (oracle, 'ADDRESSES_PROVIDER()', '', config['addresses_provider']),
+            ]
+            for asset, (underlying, _) in ASSETS.items():
+                source = discovery['sources'][asset]
+                if _address(source['underlying_address']) != underlying:
+                    raise SourceError('Saved oracle underlying mismatch')
+                if (not isinstance(source['source_address'], str)
+                        or not re.fullmatch(r'0x[0-9a-fA-F]{40}', source['source_address'])):
+                    raise SourceError('Invalid saved oracle source address')
+                expected.append((oracle, 'getSourceOfAsset(address)', underlying[2:].zfill(64),
+                                 source['source_address']))
+            for record, (target, signature, argument, result) in zip(oracle_calls, expected):
+                if (_address(record['to']) != _address(target)
+                        or record['signature'] != signature
+                        or record['data'] != SELECTORS[signature] + argument
+                        or record['block_tag'] != hex(block['number'])
+                        or _decode_address(record['result'], allow_zero=True) != result.lower()):
+                    raise SourceError('Inconsistent saved oracle call evidence')
+            for source in discovery['sources'].values():
+                address = source['source_address']
+                if not isinstance(address, str) or not re.fullmatch(r'0x[0-9a-fA-F]{40}', address):
+                    raise SourceError('Invalid saved oracle source address')
+                if int(address, 16):
+                    _contract_code(source['source_code'])
+                elif source['source_code'] is not None:
+                    raise SourceError('Zero oracle source cannot have deployed code')
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
         raise SourceError('Incomplete or invalid saved source snapshot') from exc
 
@@ -314,7 +379,8 @@ def fetch_market_snapshot(session=None, rpc_url: str | None = None) -> dict[str,
             'Addresses come from a published registry, not direct on-chain calls. '
             'Prices come from DefiLlama, not the Aave protocol oracle. '
             'Base reserve configuration was read on-chain at the recorded block. '
-            'Holdings, graph edges and scenario outcomes remain modeled; eMode is not modeled.'
+            'Oracle-to-source mappings were read on-chain at the same block. '
+            'Other graph edges, holdings and scenario outcomes remain modeled; eMode is not modeled.'
         ),
         'addresses': addresses,
         'prices': prices,

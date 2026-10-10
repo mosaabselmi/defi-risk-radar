@@ -5,7 +5,7 @@ An explainable **starter**, not a finished DeFi investment-grade risk system. De
 ## What it does now
 
 - Attractive, interactive, single-page Streamlit dashboard.
-- Builds and traces an **illustrative Aave V3 dependency graph** with edges oriented `dependent -> dependency`.
+- Builds and traces an Aave V3 dependency graph with edges oriented `dependent -> dependency`. Oracle-to-feed edges use discovered on-chain source mappings when available; other edges remain modeled.
 - Optionally retrieves **real published Aave contract addresses** from the official public address-book Solidity source and **spot-price observations** from DefiLlama's free price API.
 - Reads **WETH and USDC base reserve configuration** from the Aave V3 Ethereum data provider at one Ethereum block, validating chain ID, deployed code, market relationships, ABI responses and block consistency.
 - Uses a **synthetic WETH collateral / USDC debt position**, the **sourced WETH base liquidation threshold when available** (otherwise a manual assumption), and **user-selected** price shocks/probabilities/conditional losses/exit-cost proxies.
@@ -61,16 +61,20 @@ Retrieved fields: decimals, LTV, liquidation threshold, liquidation bonus, reser
 
 Saved snapshots include block number/hash/timestamp, chain ID, market contract addresses, RPC host, retrieval time, raw call evidence and a SHA-256 fingerprint of the fetched registry text. Full RPC URLs are not saved, avoiding credential-bearing paths or queries. Saved records are dated observations: loading does not perform new on-chain verification. Older snapshots without reserve configuration remain supported and use the manual threshold. Invalid or partial new reserve evidence is rejected.
 
-Reserve observations do not verify oracle-source edges or the dependency graph. DefiLlama prices remain market observations, so the displayed health factor is still an approximation rather than Aave's actual account health factor.
+At the same block, the adapter resolves the provider's `getPriceOracle()`, checks the oracle against the published market address, verifies deployed code and the oracle's `ADDRESSES_PROVIDER()` relationship, and calls `getSourceOfAsset(address)` for WETH and USDC. Nonzero source addresses must have deployed code. The nested `reserve_configuration.oracle_sources` record stores the oracle/source addresses, raw call evidence and observed code; block, RPC and retrieval provenance are inherited from the enclosing record.
 
-Interface signatures and return order: [Aave IPoolAddressesProvider](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IPoolAddressesProvider.sol), [Aave IPoolDataProvider](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IPoolDataProvider.sol), and [Aave view contracts](https://www.aave.com/docs/aave-v3/smart-contracts/view-contracts). Function selectors were checked against Ethereum `web3_sha3` Keccak hashes. [PublicNode endpoint](https://ethereum.publicnode.com/).
+Only the two configured oracle-to-feed edges are generated from these mappings and marked `verified_onchain=True`. They retain the dashboard's WETH Feed / USDC Feed labels while their addresses come from on-chain discovery, even if they differ from registry references. Every other relationship remains modeled. A zero source address is recorded as absence of a direct source and creates no verified feed edge. Legacy snapshots without oracle evidence retain their modeled edges. Malformed or inconsistent evidence is rejected before graph construction or saved-snapshot loading.
+
+Discovery does not identify source adapters' internal dependencies, proxy implementations, fallback routes, actual oracle price answers or freshness. Reachability can combine verified and modeled edges and does not establish realized financial loss. Public RPC responses and local snapshots are trusted observations rather than independently authenticated state proofs. DefiLlama prices remain market observations, so the displayed health factor is still an approximation rather than Aave's actual account health factor.
+
+Interface signatures and return order: [Aave IPoolAddressesProvider](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IPoolAddressesProvider.sol), [Aave IPoolDataProvider](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IPoolDataProvider.sol), [Aave IAaveOracle](https://github.com/aave-dao/aave-v3-origin/blob/main/src/contracts/interfaces/IAaveOracle.sol), and [Aave view contracts](https://www.aave.com/docs/aave-v3/smart-contracts/view-contracts). Function selectors were checked against Ethereum `web3_sha3` Keccak hashes, including `getPriceOracle()` (`0xfca513a8`) and `getSourceOfAsset(address)` (`0x92bf2be0`). [PublicNode endpoint](https://ethereum.publicnode.com/).
 
 The application begins **in illustrative mode**. It will never silently label demo numbers as real market data.
 
 ## Next hackathon milestones
 
 1. Confirm event rule on pre-existing code and AI tool use; disclose preparation work when required.
-2. Verify dynamic oracle source configuration on-chain; base WETH/USDC reserve parameters are now read at a recorded block.
+2. Extend oracle discovery to adapter internals and fallback routes; direct WETH/USDC source mappings and base reserve parameters are now read at a recorded block.
 3. Improve dependency discovery beyond static registry mapping and show a reproducible evidence trail per edge.
 4. Model a specific event's propagation into health factor, liquidation exposure, severity and exit route.
 5. Estimate executable exit costs using liquidity quote data, with failure handling and risk warnings.

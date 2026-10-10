@@ -145,10 +145,10 @@ st.markdown('<span class="chip">AAVE V3 · ETHEREUM</span><span class="chip chip
 
 if sourced:
     retrieved = snapshot['retrieved_at'][:19].replace('T', ' ') + ' UTC'
-    st.markdown(f'<div class="mode-banner mode-live"><b>PUBLIC-SOURCE MODE</b> · Registry identities and spot prices retrieved {retrieved}. Dependency edges and portfolio quantities remain modeled.</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="mode-banner mode-live"><b>PUBLIC-SOURCE MODE</b> · Registry identities and spot prices retrieved {retrieved}. Oracle-source edges are verified only where block evidence is shown; other relationships and portfolio quantities remain modeled.</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="mode-banner mode-demo"><b>ILLUSTRATIVE MODE</b> · No live source data loaded. Select <b>Fetch public data</b> in the sidebar to retrieve published registry records and spot-price observations.</div>', unsafe_allow_html=True)
-st.caption('Key separation: base reserve parameters are sourced only when block evidence is shown. Holdings, dependency edges and incident outcomes remain modeled; spot prices are not Aave oracle prices.')
+st.caption('Key separation: base reserve parameters and configured oracle sources are sourced only when block evidence is shown. Other relationships, holdings and incident outcomes remain modeled; spot prices are not Aave oracle prices.')
 
 m1, m2, m3, m4 = st.columns(4, gap='medium')
 m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off')
@@ -166,7 +166,7 @@ with left:
         st.plotly_chart(plot_graph(g, incident), use_container_width=True,
                         config={'displayModeBar': False})
         st.markdown('<div class="legend"><span class="legend-dot" style="background:#ff7185;margin-left:0"></span>Selected disruption<span class="legend-dot" style="background:#f4bc67"></span>Upstream dependents<span class="legend-dot" style="background:#43cfbc"></span>Position</div>', unsafe_allow_html=True)
-        st.caption('A → B means A depends on B. Arrows indicate modeled direction, not independently verified live contract configuration.')
+        st.caption('A → B means A depends on B. Oracle-to-feed edges use discovered source mappings when available; all other relationships remain modeled. See Sources & evidence for dated verification.')
 with right:
     with st.container(border=True):
         st.markdown('<div class="section-eyebrow">02 / Failure trace</div><div class="section-title">Incident propagation</div>', unsafe_allow_html=True)
@@ -229,7 +229,7 @@ with tab_stress:
 with tab_sources:
     st.markdown('#### Dependency evidence · model versus verified data')
     st.dataframe(graph_provenance(g), use_container_width=True, hide_index=True)
-    st.caption('Registry addresses identify published contracts; they do not prove deployed oracle-source configuration or validate modeled graph edges.')
+    st.caption('Registry addresses identify published contracts. Only oracle-to-source edges with block evidence are verified on-chain; all other graph edges remain modeled.')
     if sourced:
         st.markdown('**Published registry addresses**')
         st.dataframe([{'Registry key': k, 'Published address': v} for k, v in snapshot['addresses'].items()],
@@ -262,6 +262,21 @@ with tab_sources:
             st.write('Data provider:', reserve_config['data_provider'])
             st.caption('Saved evidence records the provider relationships and raw calls at this block. '
                        'Caps and pause status are not included. Loading a saved record does not refresh it on-chain.')
+            discovery = reserve_config.get('oracle_sources')
+            if discovery:
+                st.markdown('**Configured oracle sources · same-block observations**')
+                st.write('Verified Aave oracle:', discovery['oracle_address'])
+                st.dataframe([
+                    {'Asset': asset, 'Underlying': source['underlying_address'],
+                     'Configured source': source['source_address'],
+                     'Direct source configured': int(source['source_address'], 16) != 0}
+                    for asset, source in discovery['sources'].items()
+                ], hide_index=True)
+                st.caption('Source addresses may be adapters or proxies. Their internal dependencies, '
+                           'fallback oracle, price answers and freshness are not verified. '
+                           'A zero address means no configured direct source, so no verified feed edge is generated.')
+            else:
+                st.caption('Legacy reserve snapshot: oracle-to-feed relationships remain modeled.')
         else:
             st.caption('Legacy snapshot: no on-chain reserve configuration; the threshold remains a manual assumption.')
     else:
@@ -270,7 +285,7 @@ with tab_method:
     st.markdown('#### Interpretation guardrails')
     st.markdown('''
 - **Illustrative account:** WETH and USDC balances are entered manually; no wallet is connected.
-- **Graph discovery:** relationships are rules in code, not verified live contract configuration.
+- **Graph discovery:** oracle-to-feed mappings are discovered on-chain when block evidence is present; other relationships remain modeling rules. A path may combine verified and modeled edges.
 - **Prices:** in sourced mode, DefiLlama spot prices are **not** Aave's native oracle prices.
 - **Health factor:** simplified single-collateral model using the sourced WETH base threshold when available, otherwise an assumption; no account-specific eMode.
 - **Loss probability and severity:** user-provided assumptions, not empirical incident estimates.
@@ -279,4 +294,4 @@ with tab_method:
 ''')
 
 st.divider()
-st.markdown('<div class="smallprint">DeFi Risk Radar · Belem Capital challenge research prototype. No transactions, wallet keys, paid infrastructure or trade execution. Reserve parameters are dated on-chain observations when available; oracle-source relationships remain modeled.</div>', unsafe_allow_html=True)
+st.markdown('<div class="smallprint">DeFi Risk Radar · Belem Capital challenge research prototype. No transactions, wallet keys, paid infrastructure or trade execution. Reserve parameters and configured oracle-source mappings are dated on-chain observations when available; other relationships remain modeled.</div>', unsafe_allow_html=True)
