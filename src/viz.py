@@ -198,9 +198,9 @@ def plot_health_curve(position, selected_shock, asset='WETH', selected_is_scenar
                 name='Selected shock', hovertemplate='Selected HF: %{y:.2f}<extra></extra>'))
             fig.add_vline(x=selected_shock, line_color=palette['amber'],
                           line_dash='dash', line_width=1)
-            fig.add_annotation(x=.98, y=1.04, xref='paper', yref='paper',
+            fig.add_annotation(x=.5, y=1.08, xref='paper', yref='paper',
                                text=f'Selected {asset} shock: {selected_shock:+g}% · HF {selected:.2f}',
-                               showarrow=False, xanchor='right', yanchor='bottom',
+                               showarrow=False, xanchor='center', yanchor='bottom',
                                bgcolor=palette['surface'], bordercolor=palette['amber'], borderpad=4,
                                font=dict(color=palette['ink'], size=13))
         # Presentation zoom only; every sampled HF and the selected point remain unchanged.
@@ -209,13 +209,16 @@ def plot_health_curve(position, selected_shock, asset='WETH', selected_is_scenar
         fig.add_annotation(text='No debt: health factor is not finite',
                            showarrow=False, font=dict(color=palette['muted'], size=14))
     fig.update_layout(
-        height=245, margin=dict(l=5, r=10, t=35, b=20),
+        height=320, margin=dict(l=72, r=18, t=52, b=72),
         paper_bgcolor=palette['surface'], plot_bgcolor=palette['surface'],
         font=dict(color=palette['ink'], size=12),
         hoverlabel=dict(bgcolor=palette['surface'], font_color=palette['ink']),
-        xaxis=dict(title=asset + ' market-price shock (%)', showgrid=True,
+        xaxis=dict(title=dict(text=asset + ' market-price shock (%)', standoff=14),
+                   automargin=True, tickmode='array', tickvals=[-100, -50, 0, 50, 100],
+                   ticks='outside', ticklen=5, range=[-100, 105], showgrid=True,
                    gridcolor=palette['grid'], zeroline=False),
-        yaxis=dict(title='Health factor', showgrid=True,
+        yaxis=dict(title=dict(text='Health factor', standoff=12), automargin=True,
+                   ticks='outside', ticklen=5, nticks=5, showgrid=True,
                    gridcolor=palette['grid'], zeroline=False),
         showlegend=False,
     )

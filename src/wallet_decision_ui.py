@@ -28,19 +28,23 @@ def render_wallet_decision(analysis):
             return
         if result['historical_replay']:
             st.warning('HISTORICAL / NOT LIVE · Retrospective economic comparison only.')
-        st.info('CONDITIONAL COMPARISON · ' + result['conclusion'])
         st.warning(result['recommendation'])
+        threshold = result['breakeven_probability']
+        threshold_label = 'N/A' if threshold is None else f'{threshold*100:.2f}%'
+        cards = st.columns(4)
+        cards[0].metric('Expected downside', f"${result['expected_scenario_downside_usd']:,.2f}", border=True)
+        cards[1].metric('Assumed avoidance', f"{result['assumptions']['avoided_downside_fraction']*100:.2f}%", border=True)
+        cards[2].metric('Hypothetical cost', f"${result['hypothetical_cost_usd']:,.2f}", border=True)
+        cards[3].metric('Break-even probability', threshold_label, border=True)
+        st.caption(f"Assumed 24h scenario probability: {result['assumptions']['probability']*100:.2f}% · "
+                   f"Expected avoided downside: ${result['expected_avoided_downside_usd']:,.2f}. "
+                   'Probability and avoidance are assumptions; stress marks are not realized losses and costs are not quotes.')
+        st.info('CONDITIONAL COMPARISON · ' + result['conclusion'])
         st.caption(result['reason'])
         if result['risk_severity'] in ('DEFINITE_LIQUIDATION_ELIGIBILITY', 'POSSIBLE_LIQUIDATION_ELIGIBILITY'):
             st.warning('LIQUIDATION MECHANICS NOT PRICED · Eligibility is modeled or possible. This comparison excludes penalties and timing; it is not total expected loss or proof of a feasible exit.')
         if result['baseline_equity_usd'] <= 0 or result['stressed_equity_usd'] <= 0:
             st.warning('NON-POSITIVE MARKED EQUITY · Do not assume collateral sale proceeds can fund debt repayment.')
-        cards = st.columns(3)
-        cards[0].metric('Expected downside', f"${result['expected_scenario_downside_usd']:,.2f}", border=True)
-        cards[1].metric('Assumed transaction cost', f"${result['hypothetical_cost_usd']:,.2f}", border=True)
-        cards[2].metric('Expected avoided downside', f"${result['expected_avoided_downside_usd']:,.2f}", border=True)
-        st.caption('Probability-weighted stress marks · not realized losses. Transaction cost is a hypothetical approximation, not a quote.')
-        threshold = result['breakeven_probability']
         if threshold is None:
             st.caption('Break-even probability: N/A · No positive modeled downside can be avoided under these assumptions.')
         elif threshold > 1:

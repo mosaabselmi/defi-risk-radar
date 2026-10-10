@@ -108,9 +108,8 @@ def render_wallet_stress(observation):
                 st.info('No debt at this block: liquidation eligibility is not modeled as a finite HF.')
             else:
                 st.info('All reconciled stressed HFs ≥ 1: no modeled liquidation eligibility in this scenario.')
-            st.caption('Stress-model coverage: COMPLETE · Baseline reconciled against Aave. Only enabled collateral contributes to HF. Equity change is a stress mark, not realized damage.')
-            st.info('Stress-model coverage: COMPLETE · Execution decision: UNAVAILABLE')
-            st.caption('Execution decision: UNAVAILABLE · ' + result['status'] + '. Wallet execution feasibility remains unverified.')
+            st.caption('Stress-model coverage: COMPLETE · Baseline reconciled against Aave. Only enabled collateral contributes to HF. Equity change is a stress mark, not realized damage. '
+                       'Execution decision: UNAVAILABLE · ' + result['status'] + '. Wallet execution feasibility remains unverified.')
             if after['health_factor'] is not None:
                 st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
     _render_graph(linked, selected, incident, shock, incidents)

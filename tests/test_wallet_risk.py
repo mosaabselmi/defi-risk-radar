@@ -216,7 +216,7 @@ def test_wallet_stress_ui_and_synthetic_isolation(observed):
     assert not app.exception
     assert any('MONITOR / STRESS ANALYSIS ONLY' in c.value for c in app.caption)
     assert any('HIGH MODELED RISK' in e.value for e in app.error)
-    assert any('coverage: COMPLETE' in i.value for i in app.info)
+    assert any('coverage: COMPLETE' in caption.value for caption in app.caption)
     assert any(m.label == 'All wallet debt' and m.value == '$6,000.10' for m in app.metric)
     app.slider(key='wallet_stress_shock').set_value(0).run()
     assert not app.exception
