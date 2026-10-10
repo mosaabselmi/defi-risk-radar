@@ -10,7 +10,8 @@ import streamlit as st
 from src.dependencies import affected_by_failure, build_dependency_graph, graph_provenance
 from src.risk import (Position, Scenario, ScenarioType, ExecutionAssumptions,
                       assess_scenario, snapshot_quality_issues)
-from src.sources import DEMO_SNAPSHOT, SourceError, fetch_market_snapshot, validate_snapshot
+from src.sources import (DEMO_SNAPSHOT, SourceError, fetch_market_snapshot,
+                         save_source_snapshot, validate_snapshot)
 from src.viz import plot_graph, plot_health_curve
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -31,6 +32,9 @@ st.markdown('''
     padding:15px 17px;min-height:117px;}
 [data-testid="stMetricLabel"] {color:#a7bdd1;}
 [data-testid="stMetricValue"] {color:#f0f6fb;}
+[data-testid="stMetricLabel"] p,[data-testid="stMetricValue"] > div {
+    white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
+[data-testid="stMetricValue"] {font-size:clamp(1.35rem,2.3vw,2.25rem);}
 [data-testid="stVerticalBlockBorderWrapper"] {background:rgba(15,30,46,.50);
     border-color:#294052 !important;border-radius:16px !important;}
 [data-testid="stVerticalBlockBorderWrapper"] > div {padding-bottom:0.3rem;}
@@ -69,6 +73,7 @@ st.markdown('''
 .decision {padding:14px 16px;border-radius:12px;border:1px solid;
     margin:.65rem 0 .7rem;}
 .decision strong {font-size:1.08rem;letter-spacing:.05em;}
+.decision {overflow-wrap:anywhere;}
 .decision span {display:block;font-size:.82rem;line-height:1.50;margin-top:.3rem;}
 .decision-exit {background:rgba(255,113,133,.11);border-color:rgba(255,113,133,.42);color:#ff9daa;}
 .decision-stay {background:rgba(67,207,188,.10);border-color:rgba(67,207,188,.37);color:#8ce6d9;}
@@ -81,33 +86,39 @@ if 'snapshot' not in st.session_state:
     st.session_state.snapshot = DEMO_SNAPSHOT
 if 'last_error' not in st.session_state:
     st.session_state.last_error = None
+if 'snapshot_origin' not in st.session_state:
+    st.session_state.snapshot_origin = 'session'
 
 with st.sidebar:
     st.markdown('### 01 / Data source')
-    if st.button('↻  Fetch public data', use_container_width=True, type='primary'):
+    if st.button('↻  Fetch public data', width='stretch', type='primary'):
         with st.spinner('Requesting published sources…'):
             try:
                 snap = fetch_market_snapshot()
-                SAVED.parent.mkdir(exist_ok=True)
-                SAVED.write_text(json.dumps(snap, indent=2), encoding='utf-8')
+                save_source_snapshot(snap, SAVED)
                 st.session_state.snapshot = snap
+                st.session_state.snapshot_origin = 'fetch'
                 st.session_state.last_error = None
                 st.success('Snapshot fetched and saved.')
-            except (SourceError, OSError) as exc:
+            except (SourceError, OSError, ValueError, TypeError) as exc:
                 st.session_state.last_error = str(exc)
-    if SAVED.exists() and st.button('Load saved source snapshot', use_container_width=True):
+    if SAVED.exists() and st.button('Load saved source snapshot', width='stretch'):
         try:
             stored = json.loads(SAVED.read_text(encoding='utf-8'))
             validate_snapshot(stored)
             st.session_state.snapshot = stored
+            st.session_state.snapshot_origin = 'archive'
             st.session_state.last_error = None
         except (SourceError, OSError, ValueError) as exc:
             st.session_state.last_error = str(exc)
-    if st.button('Use illustrative demo', use_container_width=True):
+    if st.button('Use illustrative demo', width='stretch'):
         st.session_state.snapshot = DEMO_SNAPSHOT
+        st.session_state.snapshot_origin = 'demo'
         st.session_state.last_error = None
     if st.session_state.last_error:
         st.error('Source refresh failed: ' + st.session_state.last_error)
+        st.caption('No replacement data was loaded or saved. Retry Fetch public data, '
+                   'load the last saved source snapshot (if available), or use the illustrative demo above.')
     st.divider()
     st.markdown('### 02 / Position')
     st.caption('Synthetic investor balances, not a connected wallet.')
@@ -145,7 +156,7 @@ with st.sidebar:
             st.caption('Conditional assumption, not an actual close factor or guaranteed liquidation. '
                        'Only incremental bonus cost is added to market loss.')
     st.markdown('#### Graph inspection')
-    incident = st.selectbox('Graph component to inspect · independent of economic scenario', [
+    incident = st.selectbox('Independent graph inspection', [
         'WETH Feed', 'USDC Feed', 'Aave Price Oracle', 'Aave Pool',
         'Ethereum', 'WETH', 'USDC',
     ], key='graph_component')
@@ -172,6 +183,12 @@ with st.sidebar:
 
 snapshot = st.session_state.snapshot
 sourced = snapshot.get('mode') == 'sourced'
+archived = sourced and st.session_state.snapshot_origin == 'archive'
+quality_issues = snapshot_quality_issues(snapshot)
+if archived:
+    quality_issues += ('Saved snapshot is a historical replay, not a current refresh.',)
+if sourced and st.session_state.last_error:
+    quality_issues += ('Latest refresh failed; current source availability is unconfirmed.',)
 prices = snapshot['prices']
 try:
     p = Position(collateral, debt, prices['WETH']['usd'], prices['USDC']['usd'], lt / 100)
@@ -179,7 +196,7 @@ try:
     execution = ExecutionAssumptions(notional, spread, slippage, trading_fee, gas)
     d = assess_scenario(p, scenario, prob, execution, liquidation_bonus=bonus,
                         liquidation_fraction=liquidation_fraction,
-                        quality_issues=snapshot_quality_issues(snapshot))
+                        quality_issues=quality_issues)
 except (ValueError, TypeError, KeyError) as exc:
     st.error('SCENARIO RESULT · MONITOR: invalid inputs — ' + str(exc))
     st.stop()
@@ -194,8 +211,15 @@ st.markdown('<div class="sub">Trace what a position depends on. Simulate a disru
 st.markdown('<span class="chip">AAVE V3 · ETHEREUM</span><span class="chip chip-muted">SINGLE-POSITION RESEARCH</span><span class="chip chip-muted">NO LIVE TRADES</span>', unsafe_allow_html=True)
 
 if sourced:
-    retrieved = snapshot['retrieved_at'][:19].replace('T', ' ') + ' UTC'
-    st.markdown(f'<div class="mode-banner mode-live"><b>PUBLIC-SOURCE MODE</b> · Registry identities and spot prices retrieved {retrieved}. Oracle-source edges are verified only where block evidence is shown; other relationships and portfolio quantities remain modeled.</div>', unsafe_allow_html=True)
+    historical = archived or bool(quality_issues)
+    label = 'HISTORICAL SNAPSHOT / NOT LIVE' if historical else 'PUBLIC-SOURCE MODE · DATED OBSERVATIONS'
+    mode_class = 'mode-demo' if historical else 'mode-live'
+    block_label = f"Ethereum block {reserve_config['block']['number']:,}" if reserve_config else 'No reserve block evidence'
+    st.markdown(f'<div class="mode-banner {mode_class}"><b>{label}</b><br>'
+                f'{escape(block_label)} · Original retrieval: {escape(snapshot["retrieved_at"])}<br>'
+                'Oracle-source edges are verified only where block evidence is shown; other relationships remain modeled.</div>', unsafe_allow_html=True)
+    if historical:
+        st.caption('Historical scenario arithmetic remains available. These observations do not support a current STAY or EXIT decision. Fetch public data to reassess current input quality.')
 else:
     st.markdown('<div class="mode-banner mode-demo"><b>ILLUSTRATIVE MODE</b> · No live source data loaded. Select <b>Fetch public data</b> in the sidebar to retrieve published registry records and spot-price observations.</div>', unsafe_allow_html=True)
 st.caption('Key separation: base reserve parameters and configured oracle sources are sourced only when block evidence is shown. Other relationships, holdings and incident outcomes remain modeled; spot prices are not Aave oracle prices.')
@@ -203,21 +227,28 @@ st.caption('Key separation: base reserve parameters and configured oracle source
 m1, m2, m3, m4 = st.columns(4, gap='medium')
 m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off')
 m2.metric('Borrowed value', f'${p.debt_usd:,.0f}', f'{debt:,.0f} USDC', delta_color='off')
-m3.metric('Base health factor', '∞' if p.health_factor == float('inf') else f'{p.health_factor:.2f}')
-m4.metric('Reference HF · outage unquantified' if kind.oracle_only else 'Stressed health factor',
+m3.metric('Base HF', '∞' if p.health_factor == float('inf') else f'{p.health_factor:.2f}')
+m4.metric('Reference HF' if kind.oracle_only else 'Stressed HF',
           '∞' if s.health_factor == float('inf') else f'{s.health_factor:.2f}',
           delta=None if p.health_factor == float('inf') else f'{s.health_factor-p.health_factor:+.2f}',
           delta_color='normal')  # Falling health factor is bad (red), not good (green).
+m3.caption('Health factor before the selected scenario.')
+m4.caption('Outage impact is not quantified; observed HF is unchanged.' if kind.oracle_only
+           else 'Health factor after the selected asset-price shock.')
 
 st.write('')
 left, right = st.columns([1.35, 1], gap='medium')
 with left:
     with st.container(border=True):
         st.markdown('<div class="section-eyebrow">01 / Position structure</div><div class="section-title">Dependency explorer</div>', unsafe_allow_html=True)
-        st.plotly_chart(plot_graph(g, incident), use_container_width=True,
+        graph_focus = kind.asset + ' Feed' if kind.oracle_only else incident
+        st.plotly_chart(plot_graph(g, graph_focus), width='stretch',
                         config={'displayModeBar': False})
         st.markdown('<div class="legend"><span class="legend-dot" style="background:#ff7185;margin-left:0"></span>Graph focus<span class="legend-dot" style="background:#f4bc67"></span>Upstream dependents<span class="legend-dot" style="background:#43cfbc"></span>Position</div>', unsafe_allow_html=True)
         st.caption('A → B means A depends on B. Oracle-to-feed edges use discovered source mappings when available; all other relationships remain modeled. See Sources & evidence for dated verification.')
+        if kind.oracle_only:
+            st.caption(f'Graph displays the outage scenario focus: {graph_focus}. '
+                       f'The independent inspection control remains {incident}; its trace is shown alongside.')
 with right:
     with st.container(border=True):
         st.markdown('<div class="section-eyebrow">02 / Failure trace</div><div class="section-title">Incident propagation</div>', unsafe_allow_html=True)
@@ -240,13 +271,18 @@ with right:
         st.divider()
         st.markdown('<div class="section-eyebrow">03 / Portfolio response</div><div class="section-title">Stay, exit or monitor?</div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2, gap='small')
-        c1.metric('Modeled expected downside · 24h', 'Unquantified' if d.expected_downside_usd is None
+        c1.metric('Expected downside', 'N/A' if d.expected_downside_usd is None
                   else f'${d.expected_downside_usd:,.0f}')
-        c2.metric('Assumed exit cost', f'${d.exit_cost_usd:,.0f}')
+        c1.caption('Not quantified: an oracle outage alone does not establish a dollar loss.'
+                   if kind.oracle_only else '24h assumption × conditional downside; applied once.')
+        c2.metric('Exit cost', f'${d.exit_cost_usd:,.0f}')
+        c2.caption('Execution assumptions only; not an executable quote.')
         recommendation, reason = d.recommendation, d.rationale
         cls = ('decision-exit' if recommendation == 'EXIT' else
                'decision-stay' if recommendation == 'STAY' else 'decision-unknown')
         st.markdown(f'<div class="decision {cls}"><strong>SCENARIO RESULT · {recommendation}</strong><span>{escape(reason)}</span></div>', unsafe_allow_html=True)
+        if quality_issues:
+            st.warning('MONITOR / INSUFFICIENT CURRENT DATA')
         if d.breakeven_probability is None:
             break_even = 'Not applicable (unquantified or zero downside)'
         elif d.breakeven_probability > 1:
@@ -266,7 +302,7 @@ with tab_stress:
     with a:
         st.markdown('#### Market-price health factor sensitivity')
         st.plotly_chart(plot_health_curve(p, shock, asset=kind.asset,
-                                          selected_is_scenario=not kind.oracle_only), use_container_width=True,
+                                          selected_is_scenario=not kind.oracle_only), width='stretch',
                         config={'displayModeBar': False})
         if kind.oracle_only:
             st.info('Oracle outage: plotted market sensitivity is illustrative only. Reference prices and HF are unchanged observations, not a prediction of outage impact.')
@@ -314,12 +350,20 @@ with tab_stress:
         st.caption('The calculation uses the sourced WETH base threshold when available, otherwise a manual assumption. Aave eMode, account-specific rules, liquidation execution and real exit liquidity remain outside this simplified calculation.')
 with tab_sources:
     st.markdown('#### Dependency evidence · model versus verified data')
-    st.dataframe(graph_provenance(g), use_container_width=True, hide_index=True)
+    st.dataframe([
+        {'Dependent': u, 'Depends on': v,
+         'Evidence': f"Verified · block {meta['block_number']:,}" if meta.get('verified_onchain') else 'Modeled'}
+        for u, v, meta in g.edges(data=True)
+    ], width='stretch', hide_index=True)
+    with st.expander('Full relationship evidence and original snapshot'):
+        st.dataframe(graph_provenance(g), width='stretch', hide_index=True)
+        st.json(snapshot, expanded=False)
+        st.caption('Original timestamps, block hash, raw calls, addresses, reserve flags and price metadata are preserved here without refreshing or promoting their provenance.')
     st.caption('Registry addresses identify published contracts. Only oracle-to-source edges with block evidence are verified on-chain; all other graph edges remain modeled.')
     if sourced:
         st.markdown('**Published registry addresses**')
         st.dataframe([{'Registry key': k, 'Published address': v} for k, v in snapshot['addresses'].items()],
-                     use_container_width=True, hide_index=True)
+                     width='stretch', hide_index=True)
         st.markdown('**Sources**')
         st.write('Registry:', snapshot['registry_source'])
         st.write('Spot prices:', snapshot['price_source'])
@@ -331,8 +375,8 @@ with tab_sources:
                 rows.append({
                     'Asset': asset, 'Decimals': config['decimals'],
                     'LTV (%)': config['ltv_bps'] / 100,
-                    'Liquidation threshold (%)': config['liquidation_threshold_bps'] / 100,
-                    'Liquidation bonus (%)': (config['liquidation_bonus_bps'] - 10000) / 100
+                    'LT (%)': config['liquidation_threshold_bps'] / 100,
+                    'Bonus (%)': (config['liquidation_bonus_bps'] - 10000) / 100
                     if config['liquidation_bonus_bps'] else None,
                     'Reserve factor (%)': config['reserve_factor_bps'] / 100,
                     'Collateral enabled': config['usage_as_collateral_enabled'],
@@ -340,7 +384,9 @@ with tab_sources:
                     'Stable borrowing enabled (deprecated)': config['stable_borrow_rate_enabled'],
                     'Active': config['is_active'], 'Frozen': config['is_frozen'],
                 })
-            st.dataframe(rows, hide_index=True)
+            st.dataframe([{key: row[key] for key in ('Asset', 'LTV (%)', 'LT (%)', 'Bonus (%)')}
+                          for row in rows], width='stretch', hide_index=True)
+            st.caption('LT = liquidation threshold; bonus is the incremental liquidation bonus. Full reserve fields and flags remain in the evidence expander.')
             block = reserve_config['block']
             st.caption(f"Ethereum chain ID 1 · block {block['number']:,} · hash {block['hash']} · "
                        f"block timestamp {block['timestamp']} · retrieved {reserve_config['retrieved_at']} · "
@@ -353,11 +399,11 @@ with tab_sources:
                 st.markdown('**Configured oracle sources · same-block observations**')
                 st.write('Verified Aave oracle:', discovery['oracle_address'])
                 st.dataframe([
-                    {'Asset': asset, 'Underlying': source['underlying_address'],
+                    {'Asset': asset,
                      'Configured source': source['source_address'],
-                     'Direct source configured': int(source['source_address'], 16) != 0}
+                     'Direct source': int(source['source_address'], 16) != 0}
                     for asset, source in discovery['sources'].items()
-                ], hide_index=True)
+                ], width='stretch', hide_index=True)
                 st.caption('Source addresses may be adapters or proxies. Their internal dependencies, '
                            'fallback oracle, price answers and freshness are not verified. '
                            'A zero address means no configured direct source, so no verified feed edge is generated.')

@@ -4,10 +4,13 @@ The Aave Address Book is a published *registry*, not proof of current on-chain s
 DefiLlama gives market-price observations, not native oracle answers.
 """
 import hashlib
+import json
 import math
 import os
 import re
+import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -332,13 +335,18 @@ def parse_address_book(solidity_source: str) -> dict[str, str]:
 
 
 def parse_defillama_prices(payload: dict[str, Any], addresses: dict[str, str]) -> dict[str, Any]:
+    if not isinstance(payload, dict) or not isinstance(payload.get('coins'), dict):
+        raise SourceError('Invalid spot-price response: expected a coins object')
     coins = payload.get('coins', {})
+    if any(not isinstance(key, str) for key in coins):
+        raise SourceError('Invalid spot-price response: coin identifiers must be strings')
+    normalized = {k.lower(): v for k, v in coins.items()}
     parsed = {}
     for asset in ('WETH', 'USDC'):
         lookup = f"ethereum:{addresses[asset + '_UNDERLYING']}".lower()
-        normalized = {k.lower(): v for k, v in coins.items()}
         item = normalized.get(lookup)
-        if not isinstance(item, dict) or not isinstance(item.get('price'), (int, float)):
+        if (not isinstance(item, dict) or type(item.get('price')) not in (int, float)
+                or not math.isfinite(item['price'])):
             raise SourceError(f'Missing valid {asset} spot-price observation')
         if item['price'] <= 0:
             raise SourceError(f'Nonpositive {asset} price')
@@ -388,6 +396,31 @@ def fetch_market_snapshot(session=None, rpc_url: str | None = None) -> dict[str,
     }
     validate_snapshot(snapshot)
     return snapshot
+
+
+def save_source_snapshot(snapshot: dict, path: Path) -> None:
+    """Validate a complete refresh, then atomically replace the saved evidence.
+
+    Legacy snapshots remain loadable; only complete new fetches may replace them.
+    Failed validation, serialization or replacement leaves the previous file intact.
+    """
+    validate_snapshot(snapshot)
+    config = snapshot.get('reserve_configuration')
+    if snapshot.get('mode') != 'sourced' or not config or not config.get('oracle_sources'):
+        raise SourceError('Incomplete refresh: reserve and oracle-source evidence are required to save')
+    encoded = json.dumps(snapshot, indent=2, allow_nan=False)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
+                                         suffix='.tmp', delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(encoded)
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
 
 
 DEMO_SNAPSHOT = {

@@ -53,8 +53,12 @@ def plot_graph(g, failed):
         addr = g.nodes[node].get('contract_address')
         hover = f'<b>{node}</b><br>{g.nodes[node]["kind"]}'
         if addr:
-            hover += f'<br>Published registry: {addr}'
-        hover += '<br><i>Edges are modeled until on-chain-verified.</i>'
+            hover += f'<br>Contract address: {addr}'
+        verified = [meta for _, _, meta in g.in_edges(node, data=True)
+                    if meta.get('verified_onchain')]
+        if verified:
+            hover += f"<br>Configured source verified at block {verified[0]['block_number']:,}"
+        hover += '<br><i>Only evidenced oracle-to-source edges are verified; other edges are modeled.</i>'
         fig.add_trace(go.Scatter(
             x=[x], y=[y], mode='markers+text', text=[node],
             textposition='bottom center',

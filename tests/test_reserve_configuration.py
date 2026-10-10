@@ -407,7 +407,7 @@ def test_dashboard_demo_sourced_and_failed_refresh(rpc, monkeypatch):
     assert not app.exception
     assert not any('Assumed liquidation threshold' in widget.label for widget in app.slider)
     assert any('WETH base liquidation threshold' in caption.value for caption in app.caption)
-    assert any('Liquidation bonus (%)' in frame.value.columns for frame in app.dataframe)
+    assert any('Bonus (%)' in frame.value.columns for frame in app.dataframe)
 
     def fail():
         raise SourceError('mock RPC unavailable')

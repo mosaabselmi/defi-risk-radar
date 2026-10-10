@@ -248,7 +248,7 @@ def test_dashboard_switches_scenarios_and_keeps_graph_inspection_separate(fresh_
         app.selectbox(key='economic_scenario').set_value(kind.value).run(timeout=20)
         assert not app.exception
         assert app.metric[3].value == app.metric[2].value
-        assert app.metric[4].value == 'Unquantified'
+        assert app.metric[4].value == 'N/A'
         assert 'SCENARIO RESULT · MONITOR' in ' '.join(item.value for item in app.markdown)
         assert ' → ' in ' '.join(item.value for item in app.markdown)
         assert not any('market-price shock · %' in slider.label for slider in app.slider)
