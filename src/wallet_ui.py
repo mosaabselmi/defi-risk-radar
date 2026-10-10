@@ -8,6 +8,7 @@ from src.wallet import WalletProviderError, fetch_wallet_position, wallet_qualit
 from src.wallet_dependencies import analyze_wallet_incident
 from src.wallet_viz import plot_wallet_graph
 from src.wallet_decision_ui import render_wallet_decision
+from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
 
 
 PUBLIC_EXAMPLE = '0x24a416e5c00c7b47a5f8a300984579b53919330b'
@@ -15,6 +16,27 @@ PUBLIC_EXAMPLE = '0x24a416e5c00c7b47a5f8a300984579b53919330b'
 
 def _use_public_example():
     st.session_state.wallet_address_input = PUBLIC_EXAMPLE
+
+
+def _load_historical_example():
+    # Explicit user selection only; never invoked as a live-import fallback.
+    st.session_state.wallet_observation = None
+    st.session_state.wallet_observation_origin = None
+    st.session_state.wallet_error = None
+    st.session_state.wallet_error_kind = None
+    try:
+        observation = load_historical_example()
+        st.session_state.wallet_observation = observation
+        st.session_state.wallet_observation_origin = 'verified_historical_example'
+        st.session_state.wallet_address_input = observation['wallet_address']
+        st.session_state.wallet_stress_replay = True
+        st.session_state.wallet_incident = 'market_price'
+        st.session_state.wallet_stress_shock = -30
+        st.session_state.wallet_stress_asset = next(a['reserve_address'] for a in observation['assets']
+                                                  if a['collateral_enabled'] and int(a['supplied_raw']))
+    except SourceError as exc:
+        st.session_state.wallet_error = str(exc)
+        st.session_state.wallet_error_kind = 'Historical example integrity/evidence validation failure'
 
 
 def _render_graph(linked, selected, incident, shock, incidents):
@@ -66,7 +88,7 @@ def _render_relationship_evidence(linked, selected, incident, shock, incidents):
         st.json([{'dependent': u, 'dependency': v, **e} for u,v,e in graph.edges(data=True)])
 
 
-def render_wallet_stress(observation):
+def render_wallet_stress(observation, *, force_historical_replay=False):
     overview = st.container(key='wallet_overview')
     incidents = {'market_price': 'Collateral market-price shock', 'oracle_source_outage': 'Asset oracle-source outage · unquantified',
                  'oracle_outage': 'Shared Aave oracle outage · unquantified', 'rpc_outage': 'RPC retrieval outage · unquantified'}
@@ -87,7 +109,10 @@ def render_wallet_stress(observation):
             format_func=lambda address: choices[address]['symbol'] + ' · ' + address[:8] + '…' + address[-4:], key='wallet_stress_asset')
         shock_column, replay_column = st.columns([2,1], vertical_alignment='center')
         shock = shock_column.slider('Wallet collateral market-price shock (%)', -95, 100, -30, key='wallet_stress_shock', disabled=incident != 'market_price')
-        replay = replay_column.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay')
+        if force_historical_replay:
+            st.session_state.wallet_stress_replay = True
+        replay = replay_column.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay',
+                                        disabled=force_historical_replay)
         st.caption('Market-price shocks are hypothetical. An oracle or RPC outage never implies a price crash. Historical replay does not refresh the evidence.')
     linked = analyze_wallet_incident(observation, selected, incident, shock / 100, historical_replay=replay)
     result = linked['financial']
@@ -161,6 +186,10 @@ def render_wallet_stress(observation):
 
 
 def render_wallet_discovery():
+    st.button('Load verified historical example — NOT LIVE', on_click=_load_historical_example,
+              width='stretch', key='wallet_load_historical_example')
+    st.caption('Instant offline replay of captured public-account evidence. No RPC calls. '
+               'Live imports below remain separate; this example is not your wallet or current market data.')
     import_panel = (st.expander('Change account / public example controls', expanded=False)
                     if st.session_state.get('wallet_observation') else st.container(border=True))
     with import_panel:
@@ -178,6 +207,8 @@ def render_wallet_discovery():
         # A failed or different-address fetch must not leave a previous position
         # looking like the requested wallet's successful current observation.
         st.session_state.wallet_observation = None
+        st.session_state.wallet_observation_origin = None
+        st.session_state.wallet_stress_replay = False
         st.session_state.wallet_error = None
         st.session_state.wallet_error_kind = None
         with st.spinner('Reading all Aave reserves at one Ethereum block…'):
@@ -204,7 +235,10 @@ def render_wallet_discovery():
         return
 
     issues = wallet_quality_issues(observation)
-    if issues:
+    historical_example = st.session_state.get('wallet_observation_origin') == 'verified_historical_example'
+    if historical_example:
+        st.warning('HISTORICAL / NOT LIVE · VERIFIED EXAMPLE ACCOUNT · Retrospective analysis only; no current STAY/EXIT signal.')
+    elif issues:
         st.warning('HISTORICAL WALLET OBSERVATION / NOT LIVE · INSUFFICIENT CURRENT DATA')
     else:
         st.info('READ-ONLY WALLET OBSERVATION · DATED ON-CHAIN EVIDENCE')
@@ -213,8 +247,12 @@ def render_wallet_discovery():
     if observation['empty']:
         st.info('No nonzero supplied or borrowed Aave V3 assets were found at this block. No wallet risk score or recommendation is generated.')
     else:
-        render_wallet_stress(observation)
+        render_wallet_stress(observation, force_historical_replay=historical_example)
     with st.expander('Wallet evidence · full reserve enumeration and raw RPC reads'):
+        if historical_example:
+            st.caption(f'Immutable demo fixture v{FIXTURE_VERSION} · SHA-256 checked: {EXPECTED_SHA256}')
+            st.caption('The digest checks captured-file integrity, not independent proof of blockchain authenticity. '
+                       'Public RPC observations are preserved unchanged; feed health/freshness and execution liquidity are not established.')
         for issue in issues:
             st.caption(issue)
         st.caption(f"Chain ID 1 · block hash {block['hash']} · Block time {datetime.fromtimestamp(block['timestamp'], timezone.utc).isoformat()} · RPC host {observation['rpc_host']}")
