@@ -60,7 +60,7 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
             approach = b[1]+sizes[v][1]/2+.15
             route = [_boundary(a,sizes[u],(lane,a[1])), (lane,a[1]), (lane,approach),
                      (b[0],approach), (b[0],b[1]+sizes[v][1]/2)]
-        elif v == 'oracle':
+        elif v == 'oracle' or v.startswith('source:shared:'):
             start = (a[0],a[1]-sizes[u][1]/2)
             approach = b[1]+sizes[v][1]/2+.15
             route = [start,(start[0],start[1]-.12),(extent,start[1]-.12),
@@ -103,6 +103,10 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
         if data.get('contract_address'):
             address = data['contract_address']
             details += '<br>'+escape(address[:22])+'<br>'+escape(address[22:])
+        if data.get('shared_assets'):
+            details += '<br>Configured for: ' + ', '.join(
+                escape(graph.nodes['exposure:' + asset]['label'].split('\n')[0])
+                for asset in data['shared_assets'])
         if data.get('supplied_units'):
             details += '<br>Supply: '+escape(data['supplied_units'])+'<br>Debt: '+escape(data['debt_units'])
         fig.add_trace(go.Scatter(x=[p[0] for p in points],y=[p[1] for p in points],mode='lines',fill='toself',hoveron='fills',

@@ -161,7 +161,8 @@ def _header(raw, expected=None):
 class _RPC:
     """Bounded JSON-RPC batches; reject missing, duplicate or failed responses."""
 
-    def __init__(self, client, endpoint):
+    def __init__(self, client, endpoint, *, max_seconds=None,
+                 max_requests=None, timeout_seconds=None, max_retries=None):
         try:
             if not isinstance(endpoint, str):
                 raise ValueError('Invalid endpoint type')
@@ -179,19 +180,23 @@ class _RPC:
         self.http_requests = 0
         self.retries = 0
         self.started = time.monotonic()
+        self.max_seconds = MAX_IMPORT_SECONDS if max_seconds is None else max_seconds
+        self.max_requests = MAX_HTTP_REQUESTS if max_requests is None else max_requests
+        self.timeout_seconds = RPC_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
+        self.max_retries = MAX_TRANSIENT_RETRIES if max_retries is None else max_retries
 
     def _post(self, payload):
         batch = isinstance(payload, list)
         methods = sorted({item['method'] for item in payload}) if batch else [payload['method']]
         for attempt in range(2):
-            remaining = MAX_IMPORT_SECONDS - (time.monotonic() - self.started)
-            if remaining <= 0 or self.http_requests >= MAX_HTTP_REQUESTS:
+            remaining = self.max_seconds - (time.monotonic() - self.started)
+            if remaining <= 0 or self.http_requests >= self.max_requests:
                 raise WalletProviderError('Wallet RPC request/time budget exhausted', {'kind': 'budget_exhausted'})
             self.http_requests += 1
             status = None
             try:
                 response = self.client.post(self.endpoint, json=payload,
-                                            timeout=min(RPC_TIMEOUT_SECONDS, remaining))
+                                            timeout=min(self.timeout_seconds, remaining))
                 status = getattr(response, 'status_code', 200)
                 try:
                     body = response.json()
@@ -211,7 +216,7 @@ class _RPC:
                             kind == 'batch_unsupported' or (kind is None and not isinstance(body, list))
                             or (isinstance(body, dict) and codes == [-32600])):
                         raise _BatchRejected()
-                    if status in (429, 502, 503, 504) and attempt == 0 and self.retries < MAX_TRANSIENT_RETRIES:
+                    if status in (429, 502, 503, 504) and attempt == 0 and self.retries < self.max_retries:
                         self.retries += 1
                         time.sleep(0.25)
                         continue
@@ -236,7 +241,7 @@ class _RPC:
             except (requests.Timeout, requests.ConnectionError) as exc:
                 diagnostic = {'kind': type(exc).__name__, 'methods': methods, 'batch': batch}
                 self.diagnostics.append(diagnostic)
-                if attempt == 0 and self.retries < MAX_TRANSIENT_RETRIES:
+                if attempt == 0 and self.retries < self.max_retries:
                     self.retries += 1
                     time.sleep(0.25)
                     continue
@@ -487,4 +492,10 @@ def fetch_wallet_position(wallet, session=None, rpc_url=None, block_number=None)
     for asset in assets:
         asset['provenance'].update(block_timestamp=block['timestamp'],
                                    retrieved_at=observation['retrieved_at'])
+    # Supplementary discovery has a separate evidence log and time/request budget.
+    # Its failure cannot rewrite or downgrade the reconciled account observation.
+    from src.wallet_oracles import discover_oracle_sources
+    source_rpc = _RPC(client, endpoint, max_seconds=30, max_requests=2*len(assets)+4,
+                      timeout_seconds=5, max_retries=2)
+    observation['oracle_sources'] = discover_oracle_sources(source_rpc, observation)
     return observation

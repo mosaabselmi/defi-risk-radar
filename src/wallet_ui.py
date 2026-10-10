@@ -29,6 +29,10 @@ def _render_graph(linked, selected, incident, shock, incidents):
         verified.caption('Solid · verified pinned read')
         modeled.caption('Dashed · modeled dependency')
         unresolved.caption('Dotted · unresolved connection')
+        mappings = graph.graph['oracle_sources']
+        verified_count = sum(m['status'] == 'verified' for m in mappings.values())
+        st.caption(f'Configured source addresses: {verified_count}/{len(mappings)} verified at this wallet block. '
+                   'Supplementary mapping failures do not erase complete account evidence. Feed health/freshness is not verified.')
         st.caption('Highlighted node: selected exposure or potentially affected dependency path; not proof of a protocol-wide outage.')
         st.caption('Source contracts are shown only when matching getSourceOfAsset evidence exists in this observation. '
                    'A configured address does not establish source health or underlying aggregator relationships.')
@@ -39,6 +43,13 @@ def _render_relationship_evidence(linked, selected, incident, shock, incidents):
         return
     graph = linked['graph']
     with st.expander('Connected wallet relationship evidence and selected trace'):
+        st.dataframe([{'Asset': graph.nodes['exposure:' + address]['label'].split('\n')[0],
+                       'Underlying asset': address, 'Configured source': mapping['source_address'],
+                       'Mapping status': mapping['status'], 'Block': graph.graph['block']['number'],
+                       'Oracle': graph.nodes['oracle']['contract_address'],
+                       'Scope': 'Configured mapping only; feed health/freshness unverified'}
+                      for address, mapping in graph.graph['oracle_sources'].items()],
+                     hide_index=True, width='stretch')
         st.write('Selected incident: ' + incidents[incident])
         st.write('Selected reserve: ' + selected)
         if incident == 'market_price':

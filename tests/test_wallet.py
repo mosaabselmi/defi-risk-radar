@@ -83,6 +83,9 @@ class WalletRPC:
         if method == 'eth_call':
             target, data = params[0]['to'], params[0]['data']
             signature = next(name for name, selector in WALLET_SELECTORS.items() if data[:10] == selector)
+            if signature == 'getSourceOfAsset(address)':
+                return {'jsonrpc': '2.0', 'id': request['id'],
+                        'error': {'code': -32601, 'message': 'Supplementary method unavailable in baseline fixture'}}
             key = (target, signature)
             result = self.contract(target, signature, data[10:])
         elif method == 'eth_chainId':
@@ -179,7 +182,10 @@ def test_complete_multiple_debt_assets_and_evidence(rpc):
     assert 'private-secret' not in json.dumps(result)
     assert all(record['params'][1] == '0x123' for record in result['rpc_evidence'] if record['method'] == 'eth_call')
     assert all(record['params'][1] == '0x123' for record in result['rpc_evidence'] if record['method'] == 'eth_getCode')
-    assert all(timeout == 12 for _, _, _, timeout in rpc.requests)
+    # Mandatory reads keep their original timeout; the final supplementary
+    # header + three mappings + confirmation use the shorter five-second cap.
+    assert all(timeout == 12 for _, _, _, timeout in rpc.requests[:-5])
+    assert all(timeout == 5 for _, _, _, timeout in rpc.requests[-5:])
     assert not wallet_quality_issues(result)
 
 

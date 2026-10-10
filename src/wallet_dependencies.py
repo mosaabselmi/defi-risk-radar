@@ -4,6 +4,7 @@ import networkx as nx
 from src.sources import SourceError, _words, _decode_address
 from src.wallet import WALLET_SELECTORS, _address_array
 from src.wallet_risk import _read, analyze_wallet_stress
+from src.wallet_oracles import validated_source_mappings
 
 
 def build_wallet_graph(observation):
@@ -30,12 +31,20 @@ def build_wallet_graph(observation):
         raise SourceError('Partial wallet exposures cannot form a complete graph.')
     g = nx.DiGraph(wallet_address=observation['wallet_address'], block=dict(block),
                    retrieved_at=observation['retrieved_at'], asset_order=[a['reserve_address'] for a in assets])
+    mappings = validated_source_mappings(observation)
+    source_assets = {}
+    for asset_address, mapping in mappings.items():
+        if mapping['status'] == 'verified':
+            source_assets.setdefault(mapping['source_address'], []).append(asset_address)
+    g.graph['source_nodes'] = {}
+    g.graph['oracle_sources'] = mappings
     def node(key, label, kind, address=None, asset=None, layer=None):
         g.add_node(key, label=label, kind=kind, contract_address=address, asset=asset, layer=layer)
     def edge(u, v, relation, evidence=None, level='modeled'):
         g.add_edge(u, v, relation=relation, evidence_level='verified' if evidence else level,
                    verified_onchain=bool(evidence), call_evidence=evidence,
                    block_number=block['number'], block_hash=block['hash'],
+                   chain_id=1,
                    provenance='Pinned RPC contract read' if evidence else 'Analytical relationship' if level == 'modeled' else 'Not discovered')
     node('position', 'Imported position', 'public account, not ownership proof', observation['wallet_address'], layer=6)
     node('pool', 'Aave Pool', 'verified market pool', observation['pool'], layer=5)
@@ -95,20 +104,29 @@ def build_wallet_graph(observation):
             raise SourceError('Pinned oracle price mismatch.')
         edge(reserve, valuation, 'analytical borrowing / debt valuation dependency')
         edge(valuation, 'oracle', 'price read from this oracle', price_read)
-        # Never transplant demo/source-snapshot mappings from another block or asset.
-        data = WALLET_SELECTORS['getSourceOfAsset(address)'] + address[2:].rjust(64, '0')
-        reads = [r for r in observation['rpc_evidence'] if r['method'] == 'eth_call'
-                 and r['params'][0] == {'to': observation['oracle'], 'data': data}]
-        if len(reads) > 1:
-            raise SourceError('Ambiguous oracle-source evidence.')
-        configured = _decode_address(reads[0]['result'], allow_zero=True) if reads else None
-        if configured and int(configured, 16):
-            node(source, symbol + '\nconfigured source', 'verified configured source; not feed health verification', configured, address, 0)
-            edge(valuation, source, 'oracle getSourceOfAsset mapping for this asset', reads[0], 'verified')
+        # Supplemental failures never promote a source or invalidate independent
+        # mandatory wallet/account evidence. Legacy pinned mapping reads also work.
+        mapping = mappings[address]
+        configured = mapping['source_address']
+        if mapping['status'] == 'verified':
+            shared = source_assets[configured]
+            if len(shared) > 1:
+                source = 'source:shared:' + configured
+                if source not in g:
+                    node(source, 'Shared source\n' + configured[:8] + '…' + configured[-4:],
+                         'verified shared configured source; feed health/freshness unverified', configured,
+                         shared[0], 0)
+                    g.nodes[source]['shared_assets'] = shared
+            else:
+                node(source, symbol + '\n' + configured[:8] + '…' + configured[-4:],
+                     'verified configured source; not feed health verification', configured, address, 0)
+            edge(valuation, source, 'oracle getSourceOfAsset mapping for this asset', mapping['rpc_evidence'], 'verified')
         else:
-            node(source, symbol + ('\nno direct source' if configured else '\nsource unknown'),
-                 'zero configured direct source; fallback unresolved' if configured else 'source mapping not retrieved', asset=address, layer=0)
-            edge(valuation, source, 'fallback dependencies unresolved' if configured else 'oracle-source mapping unavailable', level='unknown')
+            zero = mapping['status'] == 'zero_source'
+            node(source, symbol + ('\nno direct source' if zero else '\nsource unknown'),
+                 'zero configured direct source; fallback unresolved' if zero else mapping['reason'], asset=address, layer=0)
+            edge(valuation, source, 'fallback dependencies unresolved' if zero else 'oracle-source mapping unavailable or inconsistent', level='unknown')
+        g.graph['source_nodes'][address] = source
     return g
 
 
@@ -121,7 +139,7 @@ def analyze_wallet_incident(observation, asset_address, incident='market_price',
     except (SourceError, ValueError, KeyError, TypeError, IndexError, AttributeError) as exc:
         return {'graph': None, 'financial': None, 'status': 'MONITOR / INSUFFICIENT MODEL COVERAGE', 'reason': str(exc)}
     focus = {'market_price': 'exposure:' + asset_address,
-             'oracle_source_outage': 'source:' + asset_address,
+             'oracle_source_outage': graph.graph['source_nodes'][asset_address],
              'oracle_outage': 'oracle', 'rpc_outage': 'position'}.get(incident)
     if focus is None:
         return {'graph': graph, 'financial': None, 'status': 'MONITOR / INSUFFICIENT MODEL COVERAGE', 'reason': 'Unsupported incident.'}
