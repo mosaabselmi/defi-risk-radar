@@ -5,7 +5,8 @@ from src.dependencies import build_dependency_graph, affected_by_failure
 
 def test_parsing_solidity_registry_declarations():
     keys = ['POOL', 'ORACLE', 'WETH_UNDERLYING', 'USDC_UNDERLYING',
-            'WETH_ORACLE', 'USDC_ORACLE']
+            'WETH_ORACLE', 'USDC_ORACLE', 'POOL_ADDRESSES_PROVIDER',
+            'AAVE_PROTOCOL_DATA_PROVIDER']
     addr = '0x' + '1' * 40
     text = '\n'.join(f'address internal constant {key} = {addr};' for key in keys)
     assert parse_address_book(text)['WETH_ORACLE'] == addr

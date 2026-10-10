@@ -6,7 +6,7 @@ import streamlit as st
 
 from src.dependencies import affected_by_failure, build_dependency_graph, graph_provenance
 from src.risk import Position, compare_stay_exit, stress_position
-from src.sources import DEMO_SNAPSHOT, SourceError, fetch_market_snapshot
+from src.sources import DEMO_SNAPSHOT, SourceError, fetch_market_snapshot, validate_snapshot
 from src.viz import plot_graph, plot_health_curve
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -84,27 +84,20 @@ with st.sidebar:
         with st.spinner('Requesting published sources…'):
             try:
                 snap = fetch_market_snapshot()
-                st.session_state.snapshot = snap
-                st.session_state.last_error = None
                 SAVED.parent.mkdir(exist_ok=True)
                 SAVED.write_text(json.dumps(snap, indent=2), encoding='utf-8')
+                st.session_state.snapshot = snap
+                st.session_state.last_error = None
                 st.success('Snapshot fetched and saved.')
-            except SourceError as exc:
+            except (SourceError, OSError) as exc:
                 st.session_state.last_error = str(exc)
     if SAVED.exists() and st.button('Load saved source snapshot', use_container_width=True):
         try:
             stored = json.loads(SAVED.read_text(encoding='utf-8'))
-            if stored.get('mode') != 'sourced':
-                raise ValueError('Saved record is not a sourced snapshot')
-            if (not isinstance(stored.get('prices'), dict)
-                    or not all(asset in stored['prices'] and stored['prices'][asset].get('usd', 0) > 0
-                               for asset in ('WETH', 'USDC'))
-                    or not isinstance(stored.get('addresses'), dict)
-                    or not isinstance(stored.get('retrieved_at'), str)):
-                raise ValueError('Saved snapshot is incomplete or invalid')
+            validate_snapshot(stored)
             st.session_state.snapshot = stored
             st.session_state.last_error = None
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+        except (SourceError, OSError, ValueError) as exc:
             st.session_state.last_error = str(exc)
     if st.button('Use illustrative demo', use_container_width=True):
         st.session_state.snapshot = DEMO_SNAPSHOT
@@ -116,7 +109,13 @@ with st.sidebar:
     st.caption('Synthetic investor balances, not a connected wallet.')
     collateral = st.number_input('WETH collateral · units', min_value=0.01, value=4.0, step=0.25)
     debt = st.number_input('USDC debt · units', min_value=0.0, value=6000.0, step=500.0)
-    lt = st.slider('Assumed liquidation threshold · %', 10, 95, 80)
+    reserve_config = st.session_state.snapshot.get('reserve_configuration')
+    if reserve_config:
+        lt = reserve_config['reserves']['WETH']['liquidation_threshold_bps'] / 100
+        st.caption(f'WETH base liquidation threshold · {lt:g}% '
+                   f"(on-chain snapshot, block {reserve_config['block']['number']:,}; no eMode)")
+    else:
+        lt = st.slider('Assumed liquidation threshold · %', 10, 95, 80)
     st.divider()
     st.markdown('### 03 / Stress scenario')
     incident = st.selectbox('Dependency to disrupt', [
@@ -149,7 +148,7 @@ if sourced:
     st.markdown(f'<div class="mode-banner mode-live"><b>PUBLIC-SOURCE MODE</b> · Registry identities and spot prices retrieved {retrieved}. Dependency edges and portfolio quantities remain modeled.</div>', unsafe_allow_html=True)
 else:
     st.markdown('<div class="mode-banner mode-demo"><b>ILLUSTRATIVE MODE</b> · No live source data loaded. Select <b>Fetch public data</b> in the sidebar to retrieve published registry records and spot-price observations.</div>', unsafe_allow_html=True)
-st.caption('Key separation: contract identities and observed prices may be sourced; holdings, liquidation threshold, dependency edges and incident outcomes are not yet independently verified on-chain.')
+st.caption('Key separation: base reserve parameters are sourced only when block evidence is shown. Holdings, dependency edges and incident outcomes remain modeled; spot prices are not Aave oracle prices.')
 
 m1, m2, m3, m4 = st.columns(4, gap='medium')
 m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off')
@@ -226,7 +225,7 @@ with tab_stress:
                 f'Expected loss           ${d.stay_expected_loss_usd:,.2f}\n'
                 f'Exit cost proxy         ${d.exit_cost_usd:,.2f}', language='text')
         st.caption('Price-shock and event-probability controls are independent. An oracle outage does not automatically imply the entered price shock.')
-        st.caption('Aave eMode, isolation rules, actual reserve liquidation thresholds, liquidation execution and real exit liquidity remain outside this simplified calculation.')
+        st.caption('The calculation uses the sourced WETH base threshold when available, otherwise a manual assumption. Aave eMode, account-specific rules, liquidation execution and real exit liquidity remain outside this simplified calculation.')
 with tab_sources:
     st.markdown('#### Dependency evidence · model versus verified data')
     st.dataframe(graph_provenance(g), use_container_width=True, hide_index=True)
@@ -239,6 +238,32 @@ with tab_sources:
         st.write('Registry:', snapshot['registry_source'])
         st.write('Spot prices:', snapshot['price_source'])
         st.caption('Fetched: ' + snapshot['retrieved_at'] + '. Price feed timestamps are available in the saved JSON.')
+        if reserve_config:
+            st.markdown('**Base reserve configuration · on-chain snapshot**')
+            rows = []
+            for asset, config in reserve_config['reserves'].items():
+                rows.append({
+                    'Asset': asset, 'Decimals': config['decimals'],
+                    'LTV (%)': config['ltv_bps'] / 100,
+                    'Liquidation threshold (%)': config['liquidation_threshold_bps'] / 100,
+                    'Liquidation bonus (%)': (config['liquidation_bonus_bps'] - 10000) / 100
+                    if config['liquidation_bonus_bps'] else None,
+                    'Reserve factor (%)': config['reserve_factor_bps'] / 100,
+                    'Collateral enabled': config['usage_as_collateral_enabled'],
+                    'Borrowing enabled': config['borrowing_enabled'],
+                    'Stable borrowing enabled (deprecated)': config['stable_borrow_rate_enabled'],
+                    'Active': config['is_active'], 'Frozen': config['is_frozen'],
+                })
+            st.dataframe(rows, hide_index=True)
+            block = reserve_config['block']
+            st.caption(f"Ethereum chain ID 1 · block {block['number']:,} · hash {block['hash']} · "
+                       f"block timestamp {block['timestamp']} · retrieved {reserve_config['retrieved_at']} · "
+                       f"RPC host {reserve_config['rpc_host']}")
+            st.write('Data provider:', reserve_config['data_provider'])
+            st.caption('Saved evidence records the provider relationships and raw calls at this block. '
+                       'Caps and pause status are not included. Loading a saved record does not refresh it on-chain.')
+        else:
+            st.caption('Legacy snapshot: no on-chain reserve configuration; the threshold remains a manual assumption.')
     else:
         st.info('Using illustrative local data. Fetch public data to display published addresses and timestamped spot prices.')
 with tab_method:
@@ -247,11 +272,11 @@ with tab_method:
 - **Illustrative account:** WETH and USDC balances are entered manually; no wallet is connected.
 - **Graph discovery:** relationships are rules in code, not verified live contract configuration.
 - **Prices:** in sourced mode, DefiLlama spot prices are **not** Aave's native oracle prices.
-- **Health factor:** simplified single-collateral model with an assumed liquidation threshold.
+- **Health factor:** simplified single-collateral model using the sourced WETH base threshold when available, otherwise an assumption; no account-specific eMode.
 - **Loss probability and severity:** user-provided assumptions, not empirical incident estimates.
 - **Exit costs:** assumed proxy on positive equity plus a fixed fee, not a quote for executable trades.
 - **Recommendation:** a sensitivity comparison for research, not financial advice or an automated trading signal.
 ''')
 
 st.divider()
-st.markdown('<div class="smallprint">DeFi Risk Radar · Belem Capital challenge research prototype. No transactions, wallet keys, paid infrastructure or trade execution. Next technical milestone: verify live oracle source and reserve liquidation parameters on-chain.</div>', unsafe_allow_html=True)
+st.markdown('<div class="smallprint">DeFi Risk Radar · Belem Capital challenge research prototype. No transactions, wallet keys, paid infrastructure or trade execution. Reserve parameters are dated on-chain observations when available; oracle-source relationships remain modeled.</div>', unsafe_allow_html=True)

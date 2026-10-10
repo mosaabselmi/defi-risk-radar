@@ -39,9 +39,15 @@ Keep illustrative mode and defaults: 4 WETH, 6,000 USDC debt, $2,500/WETH and $1
 
 - [ ] Open **Sources & evidence** tab. It shows relations marked **modeled**, not "verified on chain".
 - [ ] Click **Fetch public data** with a working internet connection. Verify price and address records are displayed, retrieval date is shown, and a `data/latest_source_snapshot.json` file is created (network availability permitting).
-- [ ] Inspect saved JSON and confirm prices are positive, contract addresses have 40 hexadecimal digits and timestamps are present.
+- [ ] Inspect saved JSON and confirm prices are positive, contract addresses have 40 hexadecimal digits and timestamps are present. Confirm both assets appear in `reserve_configuration.reserves`, every raw call uses the same block tag, and block number/hash/timestamp are recorded.
+- [ ] Verify the Sources tab displays both reserve configurations. Compare the raw responses at the recorded block with the configured Ethereum RPC, not with unpinned latest values.
+- [ ] Confirm the sidebar displays the sourced WETH base threshold instead of the assumed-threshold slider. Health factor uses WETH's threshold divided by 10,000; USDC's collateral threshold does not enter this WETH-collateral model.
+- [ ] Confirm liquidation bonus is displayed as the extra percentage: raw `10500` means 5%. Reserve flags are observations, not proof that an account can borrow or liquidate.
 - [ ] Click **Load saved source snapshot**. It loads without an internet connection, and the banner still identifies the data as a dated *public-source snapshot*, not live on-chain verification.
 - [ ] Click **Use illustrative demo**. It restores the demo banner, demo prices and unverified state.
+- [ ] Load an older saved registry/price snapshot without `reserve_configuration`; it should retain the manual threshold and clearly state that reserve evidence is absent.
+- [ ] Set `ETH_RPC_URL` to a wrong-chain or unreachable endpoint in the launching terminal and restart. Refresh should fail without replacing the prior snapshot. Restore a working Ethereum endpoint afterward.
+- [ ] A malformed or partial saved reserve record should show an error and preserve the prior selected snapshot.
 - [ ] Disconnect internet and click **Fetch public data**. The app should show an error without crashing or silently replacing earlier loaded source data.
 
 ## Final presentation
@@ -56,5 +62,5 @@ Keep illustrative mode and defaults: 4 WETH, 6,000 USDC debt, $2,500/WETH and $1
 
 - Published Aave registry addresses are *not* proof of current oracle configuration; modeled dependency edges remain unverified.
 - DefiLlama spot prices are not Aave's oracle answer.
-- Neither the assumed liquidation threshold nor the hypothetical loss probability comes from live on-chain data in this version.
+- WETH's base liquidation threshold comes from the recorded Ethereum block when reserve configuration is present; demo and legacy snapshots use a manual assumption. eMode and actual account settings are not modeled. Loss probability remains hypothetical.
 - The STAY/EXIT scenario model is not a real investment recommendation.

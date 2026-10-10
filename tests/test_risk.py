@@ -52,3 +52,13 @@ def test_expected_loss_equals_cost_keeps_stay():
 def test_zero_borrowing_does_not_break_stress():
     p = Position(2, 0, 2500, 1, .8)
     assert math.isinf(stress_position(p, -50).health_factor)
+
+
+def test_decoded_reserve_threshold_scales_basis_points():
+    from src.sources import parse_reserve_configuration
+    raw = '0x' + ''.join(f'{value:064x}' for value in
+                        [18, 7500, 8250, 10500, 1000, 1, 1, 0, 1, 0])
+    config = parse_reserve_configuration(raw, 'WETH')
+    p = Position(4, 6000, 2500, 1, config['liquidation_threshold_bps'] / 10000)
+    assert p.health_factor == pytest.approx(1.375)
+    assert stress_position(p, -20).health_factor == pytest.approx(1.1)
