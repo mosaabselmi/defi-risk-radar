@@ -5,32 +5,73 @@ import streamlit as st
 
 from src.sources import SourceError
 from src.wallet import WalletProviderError, fetch_wallet_position, wallet_quality_issues
-from src.wallet_risk import analyze_wallet_stress
+from src.wallet_dependencies import analyze_wallet_incident
+from src.wallet_viz import plot_wallet_graph
 
 
 def render_wallet_stress(observation):
     with st.container(border=True):
-        st.subheader('Real-wallet market stress · separate analysis')
+        st.subheader('Connected real-wallet analysis · separate from synthetic demo')
+        st.caption(f"Imported account: {observation['wallet_address']} · Ethereum block {observation['block']['number']:,}. "
+                   'The graph and analysis below use this same observation.')
         st.caption('A hypothetical market-price shock, not an oracle malfunction or outage. '
                    'Uses only pinned Aave oracle prices; this does not change the synthetic simulator.')
+        incidents = {'market_price': 'Collateral market-price shock', 'oracle_source_outage': 'Asset oracle-source outage · unquantified',
+                     'oracle_outage': 'Shared Aave oracle outage · unquantified', 'rpc_outage': 'RPC retrieval outage · unquantified'}
+        incident = st.selectbox('Real-wallet incident', list(incidents), format_func=incidents.get, key='wallet_incident')
         choices = {a['reserve_address']: a for a in observation['assets']
-                   if a['collateral_enabled'] and int(a['supplied_raw']) > 0}
+                   if incident != 'market_price' or a['collateral_enabled'] and int(a['supplied_raw']) > 0}
         if not choices:
             st.info('MONITOR / INSUFFICIENT MODEL COVERAGE · No enabled nonzero collateral to stress.')
-            return
+            choices = {a['reserve_address']: a for a in observation['assets']}
+            if not choices:
+                return
         # Retain selection across reruns; clear only if a new wallet lacks that reserve.
         if st.session_state.get('wallet_stress_asset') not in choices:
             st.session_state.pop('wallet_stress_asset', None)
-        selected = st.selectbox('Enabled wallet collateral to shock', list(choices),
+        selected = st.selectbox('Enabled wallet collateral to shock' if incident == 'market_price' else 'Wallet exposure to inspect', list(choices),
                                 format_func=lambda address: choices[address]['symbol'] + ' · ' + address,
                                 key='wallet_stress_asset')
         shock = st.slider('Wallet collateral market-price shock (%)', -95, 100, -30,
-                          key='wallet_stress_shock')
+                          key='wallet_stress_shock', disabled=incident != 'market_price')
         replay = st.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay')
         if replay:
             st.warning('HISTORICAL / NOT LIVE · Retrospective analysis only; no current STAY/EXIT decision.')
             st.caption(f"Original block: {observation['block']['number']:,} · Observed: {observation['retrieved_at']}")
-        result = analyze_wallet_stress(observation, selected, shock / 100, historical_replay=replay)
+        linked = analyze_wallet_incident(observation, selected, incident, shock / 100, historical_replay=replay)
+        if linked['graph'] is not None:
+            graph = linked['graph']
+            st.caption('Arrows: dependent → dependency. Logical reserve and valuation nodes represent records and queries, not extra contracts.')
+            st.plotly_chart(plot_wallet_graph(graph, linked.get('focus'), linked.get('affected', ()),
+                                              theme=st.context.theme.type or 'dark'), width='stretch', theme=None,
+                            config={'displayModeBar': False}, key='wallet_dependency_chart')
+            st.caption('Solid edge: verified pinned contract read.')
+            st.caption('Dashed edge: modeled analytical dependency.')
+            st.caption('Dotted edge: unknown / unresolved connection.')
+            st.caption('Highlighted node: selected exposure or potentially affected dependency path; not proof of a protocol-wide outage.')
+            st.caption('Source contracts are shown only when matching getSourceOfAsset evidence exists in this observation. '
+                       'A configured address does not establish source health or underlying aggregator relationships.')
+            with st.expander('Connected wallet relationship evidence and selected trace'):
+                st.write('Selected incident: ' + incidents[incident])
+                st.write('Selected reserve: ' + selected)
+                if incident == 'market_price':
+                    st.write(f'Selected market-price shock: {shock:+d}% · All other asset prices held constant.')
+                for path in linked.get('incident_paths', ()):
+                    st.write('Incident trace: ' + ' → '.join(graph.nodes[n]['label'].replace('\n', ' ') for n in path))
+                for path in linked.get('dependency_paths', ()):
+                    st.write('Selected exposure dependencies: ' + ' → '.join(graph.nodes[n]['label'].replace('\n', ' ') for n in path))
+                st.dataframe([{'Dependent': graph.nodes[u]['label'].replace('\n',' '),
+                               'Dependency': graph.nodes[v]['label'].replace('\n',' '),
+                               'Relationship': e['relation'], 'Evidence': e['evidence_level'],
+                               'Block': e['block_number'], 'Block hash': e['block_hash']}
+                              for u,v,e in graph.edges(data=True)], hide_index=True, width='stretch')
+                st.json([{'dependent': u, 'dependency': v, **e} for u,v,e in graph.edges(data=True)])
+        result = linked['financial']
+        if result is None:
+            st.warning(linked['status'])
+            st.caption(linked['reason'])
+            st.info('Financial impact: NOT QUANTIFIED · No dollar loss, HF change or liquidation result is inferred from a technical outage.')
+            return
         if not result['coverage']:
             st.warning(result['status'])
             st.caption(result['reason'])
