@@ -1,0 +1,29 @@
+{
+  "mode": "sourced",
+  "retrieved_at": "2026-10-08T22:32:26.863533+00:00",
+  "network": "Ethereum mainnet",
+  "protocol": "Aave V3",
+  "registry_source": "https://raw.githubusercontent.com/aave-dao/aave-address-book/main/src/AaveV3Ethereum.sol",
+  "price_source": "https://coins.llama.fi/prices/current/ethereum:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2,ethereum:0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  "data_limitations": "Addresses come from a published registry, not direct on-chain calls. Prices come from DefiLlama, not the Aave protocol oracle. User holdings and liquidation threshold remain illustrative.",
+  "addresses": {
+    "POOL": "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
+    "ORACLE": "0x54586bE62E3c3580375aE3723C145253060Ca0C2",
+    "WETH_UNDERLYING": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "USDC_UNDERLYING": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "WETH_ORACLE": "0x5424384B256154046E9667dDFaaa5e550145215e",
+    "USDC_ORACLE": "0x3f73F03aa83B2A48ed27E964eD0fDb590332095B"
+  },
+  "prices": {
+    "WETH": {
+      "usd": 2471.9526522007445,
+      "timestamp": 1791498718,
+      "confidence": 0.99
+    },
+    "USDC": {
+      "usd": 0.9996384143552701,
+      "timestamp": 1791498718,
+      "confidence": 0.99
+    }
+  }
+}
