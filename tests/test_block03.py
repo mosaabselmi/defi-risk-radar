@@ -230,10 +230,10 @@ def test_dashboard_switches_scenarios_and_keeps_graph_inspection_separate(fresh_
     app.run(timeout=20)
     assert not app.exception
     weth_hf = app.metric[3].value
-    weth_breakdown = app.code[0].value
+    weth_breakdown = app.table[0].value.copy()
     app.selectbox(key='graph_component').set_value('Ethereum').run(timeout=20)
     assert app.metric[3].value == weth_hf
-    assert app.code[0].value == weth_breakdown
+    assert app.table[0].value.equals(weth_breakdown)
     app.selectbox(key='economic_scenario').set_value(ScenarioType.USDC_MARKET.value).run(timeout=20)
     assert not app.exception
     assert float(app.metric[3].value) > float(app.metric[2].value)

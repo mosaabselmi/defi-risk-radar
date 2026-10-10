@@ -35,3 +35,41 @@ backgroundColor = "#151D29"
 secondaryBackgroundColor = "#202734"
 textColor = "#F2F3F1"
 borderColor = "#465364"
+
+# Native Settings > Theme keeps the selected appearance across reruns.
+# Root base remains dark for the default/custom appearance.
+[theme.dark]
+backgroundColor = "#0D1420"
+secondaryBackgroundColor = "#202734"
+textColor = "#F2F3F1"
+
+[theme.light]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F4F6"
+textColor = "#0D1420"
+primaryColor = "#52687A"
+linkColor = "#405E75"
+borderColor = "#B9C5CF"
+dataframeBorderColor = "#B9C5CF"
+dataframeHeaderBackgroundColor = "#E7EDF2"
+dataframeHeaderTextColor = "#172330"
+codeBackgroundColor = "#F2F4F6"
+codeTextColor = "#172330"
+greenColor = "#3D7756"
+greenTextColor = "#275B3E"
+greenBackgroundColor = "#EAF5EE"
+redColor = "#A33E49"
+redTextColor = "#91313D"
+redBackgroundColor = "#FBECEF"
+yellowColor = "#86611E"
+yellowTextColor = "#725014"
+yellowBackgroundColor = "#FBF3E3"
+chartCategoricalColors = ["#405E75", "#A33E49", "#86611E", "#3D7756"]
+
+[theme.light.sidebar]
+backgroundColor = "#E7EDF2"
+secondaryBackgroundColor = "#F2F4F6"
+textColor = "#0D1420"
+borderColor = "#B9C5CF"
+codeBackgroundColor = "#F2F4F6"
+codeTextColor = "#172330"

@@ -12,7 +12,7 @@ from src.risk import (Position, Scenario, ScenarioType, ExecutionAssumptions,
                       assess_scenario, snapshot_quality_issues)
 from src.sources import (DEMO_SNAPSHOT, SourceError, fetch_market_snapshot,
                          save_source_snapshot, validate_snapshot)
-from src.viz import plot_graph, plot_health_curve
+from src.viz import get_palette, plot_graph, plot_health_curve
 
 BASE_DIR = Path(__file__).resolve().parent
 SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'
@@ -21,32 +21,48 @@ st.set_page_config(
     page_title='DeFi Risk Radar | BSA Hackathon Prototype', page_icon='◈',
     layout='wide', initial_sidebar_state='expanded',
 )
-st.markdown('''
+# Streamlit's supported read-only API; no config mutation, DOM scripting or fake selector.
+# The native Settings selector persists the choice. A rerun synchronizes Python charts.
+theme_mode = st.context.theme.type or 'dark'
+palette = get_palette(theme_mode)
+presentation_css = '''
 <style>
 /* Native controls use config.toml. These selectors belong to the prototype. */
-.kicker {letter-spacing:.14em;text-transform:uppercase;color:#A8BAC8;font-weight:600;font-size:.75rem;}
-.hero {font-weight:650;font-size:clamp(1.85rem,3vw,2.4rem);letter-spacing:-.035em;line-height:1.18;margin:.35rem 0 .55rem;color:#F2F3F1;}
-.sub {color:#BCCAD5;font-size:1rem;line-height:1.55;margin-bottom:.8rem;}
+.kicker {letter-spacing:.14em;text-transform:uppercase;color:inherit;font-weight:600;font-size:.75rem;}
+.hero {font-weight:650;font-size:clamp(1.85rem,3vw,2.15rem);letter-spacing:-.035em;line-height:1.18;margin:.25rem 0 .4rem;color:inherit;}
+.sub {color:inherit;font-size:1rem;line-height:1.55;margin-bottom:.5rem;}
 .chip {display:inline-block;border:1px solid #465364;background:#202734;color:#D5DEE5;font-size:.72rem;letter-spacing:.04em;font-weight:550;padding:.35rem .7rem;border-radius:6px;margin-right:.4rem;margin-bottom:.5rem;}
 .chip-muted {color:#A8BAC8;}
-.mode-banner {padding:14px 18px;border-radius:8px;font-size:.9rem;line-height:1.6;margin:.6rem 0 .5rem;border:1px solid;overflow-wrap:anywhere;}
+.mode-banner {padding:10px 14px;border-radius:8px;font-size:.9rem;line-height:1.5;margin:.4rem 0;border:1px solid;overflow-wrap:anywhere;}
 .mode-demo {background:#352F24;border-color:#806D49;color:#E7C995;}
 .mode-live {background:#202734;border-color:#62778A;color:#D5DEE5;}
-.section-eyebrow {font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:#A8BAC8;font-weight:600;margin:0 0 .35rem;}
-.section-title {font-size:1.2rem;font-weight:600;letter-spacing:-.015em;color:#F2F3F1;}
-.rule-small {color:#A8BAC8;font-size:.85rem;line-height:1.6;}
+.section-eyebrow {font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:inherit;font-weight:600;margin:0 0 .35rem;}
+.section-title {font-size:1.2rem;font-weight:600;letter-spacing:-.015em;color:inherit;}
+.rule-small {color:inherit;font-size:.85rem;line-height:1.6;}
 .legend-dot {display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 5px 0 11px;vertical-align:middle;}
-.legend {color:#BCCAD5;font-size:.82rem;line-height:1.6;margin:.35rem 0 .6rem;}
-.decision {padding:20px;border-radius:8px;border:1px solid;border-left-width:4px;margin:.75rem 0 1rem;overflow-wrap:anywhere;}
+.legend {color:inherit;font-size:.82rem;line-height:1.6;margin:.35rem 0 .6rem;}
+.decision {padding:14px;border-radius:8px;border:1px solid;border-left-width:4px;margin:.5rem 0 .65rem;overflow-wrap:anywhere;}
 .decision strong {display:block;font-size:clamp(1.2rem,1.6vw,1.7rem);font-weight:700;letter-spacing:.025em;line-height:1.35;}
-.decision span {display:block;color:#F2F3F1;font-size:.95rem;line-height:1.6;margin-top:.65rem;}
+.decision strong {color:inherit;}
+.decision span {display:block;color:inherit;font-size:.95rem;line-height:1.6;margin-top:.65rem;}
+.mode-banner strong {color:inherit;}
 .decision-exit {background:#39252D;border-color:#DA7D85;color:#F0B0B5;}
 .decision-stay {background:#19332C;border-color:#77B394;color:#A5D3B9;}
 .decision-unknown {background:#352F24;border-color:#D4AD6C;color:#E7C995;}
-.smallprint {color:#A8BAC8;font-size:.85rem;line-height:1.65;}
-.st-key-dependency_panel,.st-key-response_panel {background:#202734;border-radius:8px;}
+.smallprint {color:inherit;font-size:.85rem;line-height:1.65;}
+/* Native containers and metrics keep native surfaces and text, including during theme changes. */
 </style>
-''', unsafe_allow_html=True)
+'''
+for original, role in {
+    '#A8BAC8': 'muted', '#F2F3F1': 'ink', '#BCCAD5': 'accent',
+    '#465364': 'border', '#202734': 'surface', '#D5DEE5': 'ink',
+    '#352F24': 'monitor_bg', '#806D49': 'amber', '#E7C995': 'monitor_text',
+    '#62778A': 'border', '#39252D': 'exit_bg', '#DA7D85': 'red',
+    '#F0B0B5': 'exit_text', '#19332C': 'stay_bg', '#77B394': 'stay_border',
+    '#A5D3B9': 'stay_text', '#D4AD6C': 'amber',
+}.items():
+    presentation_css = presentation_css.replace(original, palette[role])
+st.markdown(presentation_css, unsafe_allow_html=True)
 
 if 'snapshot' not in st.session_state:
     st.session_state.snapshot = DEMO_SNAPSHOT
@@ -85,6 +101,9 @@ with st.sidebar:
         st.error('Source refresh failed: ' + st.session_state.last_error)
         st.caption('No replacement data was loaded or saved. Retry Fetch public data, '
                    'load the last saved source snapshot (if available), or use the illustrative demo above.')
+    st.caption('Appearance: Settings (⋮) → Theme → Light / Dark. Streamlit remembers the choice. '
+               'Page text and widgets follow immediately. Refresh styling to synchronize charts and paired cards.')
+    st.button('Refresh theme styling', key='refresh_theme', width='stretch')
     st.divider()
     st.markdown('### 02 / Position')
     st.caption('Synthetic investor balances, not a connected wallet.')
@@ -204,20 +223,23 @@ m4.caption('Outage impact is not quantified; observed HF is unchanged.' if kind.
            else 'Health factor after the selected asset-price shock.')
 
 st.write('')
-left, right = st.columns([1.2, 1], gap='medium')
+left, right = st.columns([1.1, 1], gap='small')
 with left:
-    with st.container(border=True, key='dependency_panel'):
+    with st.container(border=True, key='dependency_panel', gap='small'):
         st.markdown('<div class="section-eyebrow">01 / Position structure</div><div class="section-title">Dependency explorer</div>', unsafe_allow_html=True)
         graph_focus = kind.asset + ' Feed' if kind.oracle_only else incident
-        st.plotly_chart(plot_graph(g, graph_focus), width='stretch',
-                        config={'displayModeBar': False})
-        st.markdown('<div class="legend"><span class="legend-dot" style="background:#DA7D85;margin-left:0"></span>Graph focus<span class="legend-dot" style="background:#D4AD6C"></span>Upstream dependents<span class="legend-dot" style="background:#BCCAD5"></span>Position</div>', unsafe_allow_html=True)
+        st.plotly_chart(plot_graph(g, graph_focus, theme=theme_mode), width='stretch',
+                        theme=None, config={'displayModeBar': False})
+        st.caption('Solid edge — verified on-chain source mapping.')
+        st.caption('Dashed edge — modeled dependency.')
+        st.caption('Highlighted node — red: selected; amber: affected upstream dependents. '
+                   'Highlighting indicates reachability, not verification.')
         st.caption('A → B means A depends on B. Oracle-to-feed edges use discovered source mappings when available; all other relationships remain modeled. See Sources & evidence for dated verification.')
         if kind.oracle_only:
             st.caption(f'Graph displays the outage scenario focus: {graph_focus}. '
                        f'The independent inspection control remains {incident}; its trace is shown alongside.')
 with right:
-    with st.container(border=True, key='response_panel'):
+    with st.container(border=True, key='response_panel', gap='small'):
         st.markdown('<div class="section-eyebrow">03 / Portfolio response</div><div class="section-title">Stay, exit or monitor?</div>', unsafe_allow_html=True)
         recommendation, reason = d.recommendation, d.rationale
         cls = ('decision-exit' if recommendation == 'EXIT' else
@@ -267,10 +289,14 @@ tab_stress, tab_sources, tab_method = st.tabs(['Stress-test diagnostics', 'Sourc
 with tab_stress:
     a, b = st.columns([1.25, 1], gap='large')
     with a:
-        st.markdown('#### Market-price health factor sensitivity')
+        st.markdown('#### When does liquidation risk begin?')
         st.plotly_chart(plot_health_curve(p, shock, asset=kind.asset,
-                                          selected_is_scenario=not kind.oracle_only), width='stretch',
-                        config={'displayModeBar': False})
+                                          selected_is_scenario=not kind.oracle_only,
+                                          theme=theme_mode), width='stretch',
+                        theme=None, config={'displayModeBar': False})
+        st.caption('Below HF = 1, this simplified model indicates liquidation eligibility, '
+                   'not guaranteed execution. The shaded region is below this threshold. '
+                   'The vertical scale focuses on the base and selected HF; extreme values may be outside the view.')
         if kind.oracle_only:
             st.info('Oracle outage: plotted market sensitivity is illustrative only. Reference prices and HF are unchanged observations, not a prediction of outage impact.')
         if s.debt_usd == 0:
@@ -283,20 +309,24 @@ with tab_stress:
         st.markdown('#### Financial-impact breakdown')
         def money(value):
             return 'Unquantified' if value is None else f'${value:,.2f}'
-        st.code(f'Economic scenario        {kind.value}\n'
-                f'Base collateral          {money(p.collateral_usd)}\n'
-                f'Base USDC debt           {money(p.debt_usd)}\n'
-                f'Base equity              {money(p.equity_usd)}\n'
-                f'{"Reference" if kind.oracle_only else "Stressed"} equity         {money(s.equity_usd)}\n'
-                f'Market P&L               {money(impact.pnl_usd)}\n'
-                f'Collateral market P&L    {money(None if kind.oracle_only else s.collateral_usd - p.collateral_usd)}\n'
-                f'Debt value change        {money(None if kind.oracle_only else s.debt_usd - p.debt_usd)}\n'
-                f'Price downside           {money(impact.price_downside_usd)}\n'
-                f'Assumed bonus penalty    {money(impact.liquidation_penalty_usd)}\n'
-                f'Conditional downside     {money(impact.conditional_downside_usd)}\n'
-                f'Conditional favorable    {money(impact.favorable_usd)}\n'
-                f'Expected downside · 24h  {money(d.expected_downside_usd)}\n'
-                f'Expected favorable · 24h {money(d.expected_favorable_usd)}', language='text')
+        st.caption('Economic scenario: ' + kind.value)
+        # Native two-column table wraps labels and separates them from amounts without code-block scrolling.
+        st.table([
+            {'Component': label, 'USD': money(value)} for label, value in [
+                ('Base collateral', p.collateral_usd), ('Base USDC debt', p.debt_usd),
+                ('Base equity', p.equity_usd),
+                (('Reference' if kind.oracle_only else 'Stressed') + ' equity', s.equity_usd),
+                ('Market P&L', impact.pnl_usd),
+                ('Collateral market P&L', None if kind.oracle_only else s.collateral_usd - p.collateral_usd),
+                ('Debt value change', None if kind.oracle_only else s.debt_usd - p.debt_usd),
+                ('Price downside', impact.price_downside_usd),
+                ('Assumed bonus penalty', impact.liquidation_penalty_usd),
+                ('Conditional downside', impact.conditional_downside_usd),
+                ('Conditional favorable', impact.favorable_usd),
+                ('Expected downside · 24h', d.expected_downside_usd),
+                ('Expected favorable · 24h', d.expected_favorable_usd),
+            ]
+        ], hide_index=True, border='horizontal', width='stretch')
         if not kind.oracle_only:
             st.caption(f'Expected downside = {prob}% assumed scenario probability × conditional downside, applied exactly once. '
                        'A USDC price decline reduces the USD value of this debt; a rise increases it.')

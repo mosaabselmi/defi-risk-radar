@@ -164,7 +164,7 @@ def test_archive_keeps_arithmetic_and_original_evidence(tmp_path, fresh_snapshot
     assert 'MONITOR / INSUFFICIENT CURRENT DATA' in text
     assert 'SCENARIO RESULT · EXIT' not in text
     assert float(app.metric[3].value) < float(app.metric[2].value)
-    assert '$3,000.00' in app.code[0].value
+    assert '$3,000.00' in app.table[0].value['USD'].values
     assert app.session_state['snapshot'] == snapshot
     assert saved.read_bytes() == original
     assert any('Verified' in str(frame.value) for frame in app.dataframe)
