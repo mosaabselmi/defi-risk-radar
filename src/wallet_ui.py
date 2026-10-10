@@ -1,10 +1,89 @@
-"""Session-only wallet evidence display; never connects to the scenario model."""
+"""Session-only wallet evidence and separate stress panel; no synthetic integration."""
 from datetime import datetime, timezone
 
 import streamlit as st
 
 from src.sources import SourceError
 from src.wallet import WalletProviderError, fetch_wallet_position, wallet_quality_issues
+from src.wallet_risk import analyze_wallet_stress
+
+
+def render_wallet_stress(observation):
+    with st.container(border=True):
+        st.subheader('Real-wallet market stress · separate analysis')
+        st.caption('A hypothetical market-price shock, not an oracle malfunction or outage. '
+                   'Uses only pinned Aave oracle prices; this does not change the synthetic simulator.')
+        choices = {a['reserve_address']: a for a in observation['assets']
+                   if a['collateral_enabled'] and int(a['supplied_raw']) > 0}
+        if not choices:
+            st.info('MONITOR / INSUFFICIENT MODEL COVERAGE · No enabled nonzero collateral to stress.')
+            return
+        # Retain selection across reruns; clear only if a new wallet lacks that reserve.
+        if st.session_state.get('wallet_stress_asset') not in choices:
+            st.session_state.pop('wallet_stress_asset', None)
+        selected = st.selectbox('Enabled wallet collateral to shock', list(choices),
+                                format_func=lambda address: choices[address]['symbol'] + ' · ' + address,
+                                key='wallet_stress_asset')
+        shock = st.slider('Wallet collateral market-price shock (%)', -95, 100, -30,
+                          key='wallet_stress_shock')
+        replay = st.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay')
+        if replay:
+            st.warning('HISTORICAL / NOT LIVE · Retrospective analysis only; no current STAY/EXIT decision.')
+            st.caption(f"Original block: {observation['block']['number']:,} · Observed: {observation['retrieved_at']}")
+        result = analyze_wallet_stress(observation, selected, shock / 100, historical_replay=replay)
+        if not result['coverage']:
+            st.warning(result['status'])
+            st.caption(result['reason'])
+            st.caption('No quantified stress result is shown when evidence is stale, incomplete or unsupported.')
+            return
+        before, after = result['baseline'], result['stressed']
+        if after['liquidation_eligible']:
+            st.error('HIGH MODELED RISK · Definite liquidation eligibility across reconciled HF conventions (HF < 1). '
+                     'This is not guaranteed liquidation or a realized loss.')
+        elif after['liquidation_possible']:
+            st.warning('POSSIBLE LIQUIDATION ELIGIBILITY · Reconciled HF conventions straddle 1. '
+                       'The conservative HF is below 1; eligibility is uncertain.')
+        elif after['health_factor'] is None:
+            st.info('No debt at this block: liquidation eligibility is not modeled as a finite HF.')
+        else:
+            st.info('All reconciled stressed HFs ≥ 1: no modeled liquidation eligibility in this scenario.')
+        st.info('Stress-model coverage: COMPLETE · Baseline reconciled against Aave.')
+        st.caption('Execution decision: UNAVAILABLE · ' + result['status'] + ' · ' + result['reason'])
+        columns = st.columns(3)
+        columns[0].metric('Stressed collateral', f"${after['collateral_usd']:,.2f}")
+        columns[1].metric('All wallet debt', f"${after['debt_usd']:,.2f}")
+        columns[2].metric('Stressed HF · conservative', 'N/A · no debt' if after['health_factor'] is None
+                          else f"{after['health_factor']:.4f}")
+        if after['health_factor'] is not None:
+            st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
+        st.dataframe([{'Measure': label, 'Baseline': f'${before[key]:,.2f}', 'Stressed': f'${after[key]:,.2f}'}
+                      for label, key in [('Enabled collateral', 'collateral_usd'), ('All supplies', 'supplied_usd'),
+                                         ('All debt', 'debt_usd'), ('Marked equity', 'equity_usd')]],
+                     hide_index=True, width='stretch')
+        st.metric('Change in marked equity', f"${result['equity_change_usd']:,.2f}")
+        st.caption(f"Baseline reconstructed HF: {'N/A' if before['health_factor'] is None else format(before['health_factor'], '.8f')} · "
+                   f"Pool HF: {'N/A' if result['reported_health_factor'] is None else format(result['reported_health_factor'], '.8f')} · "
+                   f"Absolute reconciliation tolerance: {result['hf_tolerance']:.3E} · {result['hf_convention']}.")
+        with st.expander('Real-wallet stress calculation breakdown'):
+            st.dataframe([{'HF convention': name, 'Stressed HF': str(value) if value is not None else 'N/A'}
+                          for name, value in after['health_factors_by_convention'].items()],
+                         hide_index=True, width='stretch')
+            st.dataframe([{'Asset': row['asset'], 'Reserve': row['reserve_address'],
+                           'Supplied units': str(row['supplied_units']), 'Debt units': str(row['debt_units']),
+                           'Stressed Aave price USD': str(row['price_usd']),
+                           'Enabled collateral USD': str(row['enabled_collateral_usd']),
+                           'Debt USD (includes tiny balances)': str(row['debt_usd']),
+                           'Collateral enabled': row['collateral_enabled'],
+                           'Effective LT bps': row['liquidation_threshold_bps']}
+                          for row in after['assets']], hide_index=True, width='stretch')
+        st.caption('Equity = all supplied token values minus all debt values. Only enabled collateral contributes '
+                   'to HF. All occurrences of the selected asset share the shocked price, including debt in that asset. '
+                   'Other prices, balances and thresholds remain constant; interest accrual, liquidation penalties, '
+                   'exit costs, liquidity and execution are not simulated. Nonzero eMode is unsupported. '
+                   'Debt uses conservative Aave base-unit rounding. When baseline evidence cannot distinguish '
+                   'Aave HF rounding conventions, the lower stressed HF and full range are shown; a range '
+                   'crossing 1 means possible, not definite, liquidation eligibility. '
+                   'Oracle answers are pinned observations, not independently verified feed-freshness guarantees.')
 
 
 def render_wallet_discovery():
@@ -80,3 +159,5 @@ def render_wallet_discovery():
         st.caption(observation['limitations'])
         with st.expander('Wallet evidence · full reserve enumeration and raw RPC reads'):
             st.json(observation)
+        if not observation['empty']:
+            render_wallet_stress(observation)
