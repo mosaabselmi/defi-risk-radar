@@ -7,6 +7,7 @@ from src.sources import SourceError
 from src.wallet import WalletProviderError, fetch_wallet_position, wallet_quality_issues
 from src.wallet_dependencies import analyze_wallet_incident
 from src.wallet_viz import plot_wallet_graph
+from src.wallet_decision_ui import render_wallet_decision
 
 
 def render_wallet_stress(observation):
@@ -125,6 +126,7 @@ def render_wallet_stress(observation):
                    'Aave HF rounding conventions, the lower stressed HF and full range are shown; a range '
                    'crossing 1 means possible, not definite, liquidation eligibility. '
                    'Oracle answers are pinned observations, not independently verified feed-freshness guarantees.')
+        render_wallet_decision(linked)
 
 
 def render_wallet_discovery():
