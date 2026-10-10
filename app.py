@@ -18,67 +18,33 @@ BASE_DIR = Path(__file__).resolve().parent
 SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'
 
 st.set_page_config(
-    page_title='DeFi Risk Radar | Belem Capital', page_icon='◈',
+    page_title='DeFi Risk Radar | BSA Hackathon Prototype', page_icon='◈',
     layout='wide', initial_sidebar_state='expanded',
 )
 st.markdown('''
 <style>
-:root {--accent:#43cfbc;--sub:#91a8bd;--ink:#e8f0f7;--line:#263c50;}
-.stApp {background:radial-gradient(ellipse at 87% -14%,#14283c 0%,#08121f 43%,#07101b 95%);}
-.block-container {max-width:1390px;padding-top:1.25rem;padding-bottom:3rem;}
-[data-testid="stSidebar"] {background:#0d1b2b;border-right:1px solid #25394c;}
-[data-testid="stSidebar"] .block-container {padding-top:1.5rem;}
-[data-testid="stMetric"] {background:#102337;border:1px solid #2a4157;border-radius:13px;
-    padding:15px 17px;min-height:117px;}
-[data-testid="stMetricLabel"] {color:#a7bdd1;}
-[data-testid="stMetricValue"] {color:#f0f6fb;}
-[data-testid="stMetricLabel"] p,[data-testid="stMetricValue"] > div {
-    white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;}
-[data-testid="stMetricValue"] {font-size:clamp(1.35rem,2.3vw,2.25rem);}
-[data-testid="stVerticalBlockBorderWrapper"] {background:rgba(15,30,46,.50);
-    border-color:#294052 !important;border-radius:16px !important;}
-[data-testid="stVerticalBlockBorderWrapper"] > div {padding-bottom:0.3rem;}
-[data-testid="stAlert"] {border-radius:11px;}
-.stButton > button[kind="primary"] {background:#43cfbc;color:#07232b;border:0;font-weight:750;}
-.stButton > button[kind="primary"]:hover {background:#5de5d3;color:#06252a;}
-.stButton > button:not([kind="primary"]) {border-color:#345066;}
-[data-testid="stSidebar"] label,[data-testid="stSidebar"] p {color:#bdcddd;}
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {color:#c7d8e7;font-weight:560;}
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {font-size:1.03rem;letter-spacing:-.02em;}
-[data-testid="stSidebar"] hr {border-color:#294156;}
-[data-testid="stMarkdownContainer"] h3 {font-weight:720;letter-spacing:-.025em;}
-[data-testid="stPlotlyChart"] {overflow:visible;}
-[data-testid="stTabs"] button {font-weight:650;}
-[data-testid="stCaptionContainer"] {color:#8da3b8;}
-.kicker {letter-spacing:.17em;text-transform:uppercase;color:#53c9c6;
-    font-weight:750;font-size:.72rem;}
-.hero {font-weight:800;font-size:2.45rem;letter-spacing:-.055em;line-height:1.14;
-    margin:.30rem 0 .45rem;color:#edf6fb;}
-.sub {color:#a7c0d5;font-size:.99rem; margin-bottom:.9rem;}
-.chip {display:inline-block;border:1px solid #255268;background:#0c2937;color:#81ddd8;
-    font-size:.68rem;letter-spacing:.055em;font-weight:700;padding:.33rem .70rem;
-    border-radius:50px;margin-right:.35rem;margin-bottom:.5rem;}
-.chip-muted {border-color:#33465d;background:#142333;color:#bdc8d5;}
-.mode-banner {padding:12px 16px;border-radius:11px;font-size:.89rem;
-    line-height:1.55;margin:.6rem 0 .45rem;border:1px solid;}
-.mode-demo {background:rgba(211,155,63,.10);border-color:rgba(211,155,63,.28);color:#f0c881;}
-.mode-live {background:rgba(67,207,188,.10);border-color:rgba(67,207,188,.27);color:#86e4d5;}
-.section-eyebrow {font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;
-    color:#6ebbc5;font-weight:750;margin:0 0 .3rem;}
-.section-title {font-size:1.20rem;font-weight:750;letter-spacing:-.025em;color:#edf5fa;}
-.rule-small {color:#91a8bd;font-size:.79rem;line-height:1.56;}
-.legend-dot {display:inline-block;width:9px;height:9px;border-radius:50%;
-    margin:0 5px 0 11px;vertical-align:middle;}
-.legend {color:#a8bfd1;font-size:.76rem;margin:.2rem 0 .55rem;}
-.decision {padding:14px 16px;border-radius:12px;border:1px solid;
-    margin:.65rem 0 .7rem;}
-.decision strong {font-size:1.08rem;letter-spacing:.05em;}
-.decision {overflow-wrap:anywhere;}
-.decision span {display:block;font-size:.82rem;line-height:1.50;margin-top:.3rem;}
-.decision-exit {background:rgba(255,113,133,.11);border-color:rgba(255,113,133,.42);color:#ff9daa;}
-.decision-stay {background:rgba(67,207,188,.10);border-color:rgba(67,207,188,.37);color:#8ce6d9;}
-.decision-unknown {background:rgba(244,188,103,.10);border-color:rgba(244,188,103,.34);color:#f4d49c;}
-.smallprint {color:#91a4b7;font-size:.79rem;line-height:1.65;}
+/* Native controls use config.toml. These selectors belong to the prototype. */
+.kicker {letter-spacing:.14em;text-transform:uppercase;color:#A8BAC8;font-weight:600;font-size:.75rem;}
+.hero {font-weight:650;font-size:clamp(1.85rem,3vw,2.4rem);letter-spacing:-.035em;line-height:1.18;margin:.35rem 0 .55rem;color:#F2F3F1;}
+.sub {color:#BCCAD5;font-size:1rem;line-height:1.55;margin-bottom:.8rem;}
+.chip {display:inline-block;border:1px solid #465364;background:#202734;color:#D5DEE5;font-size:.72rem;letter-spacing:.04em;font-weight:550;padding:.35rem .7rem;border-radius:6px;margin-right:.4rem;margin-bottom:.5rem;}
+.chip-muted {color:#A8BAC8;}
+.mode-banner {padding:14px 18px;border-radius:8px;font-size:.9rem;line-height:1.6;margin:.6rem 0 .5rem;border:1px solid;overflow-wrap:anywhere;}
+.mode-demo {background:#352F24;border-color:#806D49;color:#E7C995;}
+.mode-live {background:#202734;border-color:#62778A;color:#D5DEE5;}
+.section-eyebrow {font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:#A8BAC8;font-weight:600;margin:0 0 .35rem;}
+.section-title {font-size:1.2rem;font-weight:600;letter-spacing:-.015em;color:#F2F3F1;}
+.rule-small {color:#A8BAC8;font-size:.85rem;line-height:1.6;}
+.legend-dot {display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 5px 0 11px;vertical-align:middle;}
+.legend {color:#BCCAD5;font-size:.82rem;line-height:1.6;margin:.35rem 0 .6rem;}
+.decision {padding:20px;border-radius:8px;border:1px solid;border-left-width:4px;margin:.75rem 0 1rem;overflow-wrap:anywhere;}
+.decision strong {display:block;font-size:clamp(1.2rem,1.6vw,1.7rem);font-weight:700;letter-spacing:.025em;line-height:1.35;}
+.decision span {display:block;color:#F2F3F1;font-size:.95rem;line-height:1.6;margin-top:.65rem;}
+.decision-exit {background:#39252D;border-color:#DA7D85;color:#F0B0B5;}
+.decision-stay {background:#19332C;border-color:#77B394;color:#A5D3B9;}
+.decision-unknown {background:#352F24;border-color:#D4AD6C;color:#E7C995;}
+.smallprint {color:#A8BAC8;font-size:.85rem;line-height:1.65;}
+.st-key-dependency_panel,.st-key-response_panel {background:#202734;border-radius:8px;}
 </style>
 ''', unsafe_allow_html=True)
 
@@ -206,8 +172,9 @@ g = build_dependency_graph(snapshot)
 affected = affected_by_failure(g, incident)
 
 st.markdown('<div class="kicker">BSA EPFL 2026 / BELEM CAPITAL TRACK</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero">DeFi Risk Radar <span style="color:#43cfbc">◈</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="hero">DeFi Risk Radar</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub">Trace what a position depends on. Simulate a disruption. Explain the risk decision.</div>', unsafe_allow_html=True)
+st.caption('Independent BSA hackathon prototype inspired by the sponsor visual identity. Not an official Belem Capital product.')
 st.markdown('<span class="chip">AAVE V3 · ETHEREUM</span><span class="chip chip-muted">SINGLE-POSITION RESEARCH</span><span class="chip chip-muted">NO LIVE TRADES</span>', unsafe_allow_html=True)
 
 if sourced:
@@ -225,32 +192,58 @@ else:
 st.caption('Key separation: base reserve parameters and configured oracle sources are sourced only when block evidence is shown. Other relationships, holdings and incident outcomes remain modeled; spot prices are not Aave oracle prices.')
 
 m1, m2, m3, m4 = st.columns(4, gap='medium')
-m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off')
-m2.metric('Borrowed value', f'${p.debt_usd:,.0f}', f'{debt:,.0f} USDC', delta_color='off')
-m3.metric('Base HF', '∞' if p.health_factor == float('inf') else f'{p.health_factor:.2f}')
+m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off', border=True)
+m2.metric('Borrowed value', f'${p.debt_usd:,.0f}', f'{debt:,.0f} USDC', delta_color='off', border=True)
+m3.metric('Base HF', '∞' if p.health_factor == float('inf') else f'{p.health_factor:.2f}', border=True)
 m4.metric('Reference HF' if kind.oracle_only else 'Stressed HF',
           '∞' if s.health_factor == float('inf') else f'{s.health_factor:.2f}',
           delta=None if p.health_factor == float('inf') else f'{s.health_factor-p.health_factor:+.2f}',
-          delta_color='normal')  # Falling health factor is bad (red), not good (green).
+          delta_color='normal', border=True)  # Falling health factor is bad (red), not good (green).
 m3.caption('Health factor before the selected scenario.')
 m4.caption('Outage impact is not quantified; observed HF is unchanged.' if kind.oracle_only
            else 'Health factor after the selected asset-price shock.')
 
 st.write('')
-left, right = st.columns([1.35, 1], gap='medium')
+left, right = st.columns([1.2, 1], gap='medium')
 with left:
-    with st.container(border=True):
+    with st.container(border=True, key='dependency_panel'):
         st.markdown('<div class="section-eyebrow">01 / Position structure</div><div class="section-title">Dependency explorer</div>', unsafe_allow_html=True)
         graph_focus = kind.asset + ' Feed' if kind.oracle_only else incident
         st.plotly_chart(plot_graph(g, graph_focus), width='stretch',
                         config={'displayModeBar': False})
-        st.markdown('<div class="legend"><span class="legend-dot" style="background:#ff7185;margin-left:0"></span>Graph focus<span class="legend-dot" style="background:#f4bc67"></span>Upstream dependents<span class="legend-dot" style="background:#43cfbc"></span>Position</div>', unsafe_allow_html=True)
+        st.markdown('<div class="legend"><span class="legend-dot" style="background:#DA7D85;margin-left:0"></span>Graph focus<span class="legend-dot" style="background:#D4AD6C"></span>Upstream dependents<span class="legend-dot" style="background:#BCCAD5"></span>Position</div>', unsafe_allow_html=True)
         st.caption('A → B means A depends on B. Oracle-to-feed edges use discovered source mappings when available; all other relationships remain modeled. See Sources & evidence for dated verification.')
         if kind.oracle_only:
             st.caption(f'Graph displays the outage scenario focus: {graph_focus}. '
                        f'The independent inspection control remains {incident}; its trace is shown alongside.')
 with right:
-    with st.container(border=True):
+    with st.container(border=True, key='response_panel'):
+        st.markdown('<div class="section-eyebrow">03 / Portfolio response</div><div class="section-title">Stay, exit or monitor?</div>', unsafe_allow_html=True)
+        recommendation, reason = d.recommendation, d.rationale
+        cls = ('decision-exit' if recommendation == 'EXIT' else
+               'decision-stay' if recommendation == 'STAY' else 'decision-unknown')
+        st.markdown(f'<div class="decision {cls}"><strong>SCENARIO RESULT · {recommendation}</strong><span>{escape(reason)}</span></div>', unsafe_allow_html=True)
+        if quality_issues:
+            st.warning('MONITOR / INSUFFICIENT CURRENT DATA')
+        c1, c2 = st.columns(2, gap='small')
+        c1.metric('Expected downside', 'N/A' if d.expected_downside_usd is None
+                  else f'${d.expected_downside_usd:,.0f}', border=True)
+        c1.caption('Not quantified: an oracle outage alone does not establish a dollar loss.'
+                   if kind.oracle_only else '24h assumption × conditional downside; applied once.')
+        c2.metric('Exit cost', f'${d.exit_cost_usd:,.0f}', border=True)
+        c2.caption('Execution assumptions only; not an executable quote.')
+        if d.breakeven_probability is None:
+            break_even = 'Not applicable (unquantified or zero downside)'
+        elif d.breakeven_probability > 1:
+            break_even = '>100% · unreachable under this conditional downside'
+        else:
+            break_even = f'{100*d.breakeven_probability:.1f}%'
+        st.markdown(f'**Break-even 24h scenario probability:** {break_even}')
+        st.caption('This comparison is conditional on the entered execution assumptions. Full withdrawal requires '
+                   'repayment or an unwind of Aave debt first; available funding, liquidity and transaction ordering are not verified.')
+        for issue in d.issues:
+            st.caption('Input quality: ' + issue)
+        st.divider()
         st.markdown('<div class="section-eyebrow">02 / Failure trace</div><div class="section-title">Incident propagation</div>', unsafe_allow_html=True)
         st.markdown(f'**Independent graph inspection:** {incident}')
         st.markdown('**Potentially affected:** ' + (', '.join(affected) or 'None identified'))
@@ -268,32 +261,6 @@ with right:
                        'No realized price change, dollar loss or liquidation is inferred from an outage.')
         else:
             st.caption('Graph inspection is separate from this market shock; no oracle malfunction is assumed.')
-        st.divider()
-        st.markdown('<div class="section-eyebrow">03 / Portfolio response</div><div class="section-title">Stay, exit or monitor?</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2, gap='small')
-        c1.metric('Expected downside', 'N/A' if d.expected_downside_usd is None
-                  else f'${d.expected_downside_usd:,.0f}')
-        c1.caption('Not quantified: an oracle outage alone does not establish a dollar loss.'
-                   if kind.oracle_only else '24h assumption × conditional downside; applied once.')
-        c2.metric('Exit cost', f'${d.exit_cost_usd:,.0f}')
-        c2.caption('Execution assumptions only; not an executable quote.')
-        recommendation, reason = d.recommendation, d.rationale
-        cls = ('decision-exit' if recommendation == 'EXIT' else
-               'decision-stay' if recommendation == 'STAY' else 'decision-unknown')
-        st.markdown(f'<div class="decision {cls}"><strong>SCENARIO RESULT · {recommendation}</strong><span>{escape(reason)}</span></div>', unsafe_allow_html=True)
-        if quality_issues:
-            st.warning('MONITOR / INSUFFICIENT CURRENT DATA')
-        if d.breakeven_probability is None:
-            break_even = 'Not applicable (unquantified or zero downside)'
-        elif d.breakeven_probability > 1:
-            break_even = '>100% · unreachable under this conditional downside'
-        else:
-            break_even = f'{100*d.breakeven_probability:.1f}%'
-        st.markdown(f'**Break-even 24h scenario probability:** {break_even}')
-        st.caption('This comparison is conditional on the entered execution assumptions. Full withdrawal requires '
-                   'repayment or an unwind of Aave debt first; available funding, liquidity and transaction ordering are not verified.')
-        for issue in d.issues:
-            st.caption('Input quality: ' + issue)
 
 st.write('')
 tab_stress, tab_sources, tab_method = st.tabs(['Stress-test diagnostics', 'Sources & evidence', 'Model scope & limitations'])
