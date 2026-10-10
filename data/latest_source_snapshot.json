@@ -1,6 +1,6 @@
 {
   "mode": "sourced",
-  "retrieved_at": "2026-10-10T13:23:48.779755+00:00",
+  "retrieved_at": "2026-10-10T14:09:49.212368+00:00",
   "network": "Ethereum mainnet",
   "protocol": "Aave V3",
   "registry_source": "https://raw.githubusercontent.com/aave-dao/aave-address-book/main/src/AaveV3Ethereum.sol",
@@ -19,28 +19,28 @@
   },
   "prices": {
     "WETH": {
-      "usd": 2493.6977531144676,
-      "timestamp": 1791638453,
+      "usd": 2494.9963220475306,
+      "timestamp": 1791641339,
       "confidence": 0.99
     },
     "USDC": {
-      "usd": 0.9996916065791882,
-      "timestamp": 1791638453,
+      "usd": 0.9997255419020483,
+      "timestamp": 1791641325,
       "confidence": 0.99
     }
   },
   "reserve_configuration": {
     "chain_id": 1,
     "block": {
-      "number": 26162308,
-      "hash": "0x7c8b813e21d6c458f113bd48e7599c0df280177778dbe72de3518b37552177bf",
-      "timestamp": 1791638603
+      "number": 26162537,
+      "hash": "0xcf2b21428ad1f67264e490f2e17d22064a88219f7a7a43d1d9e51639420454db",
+      "timestamp": 1791641375
     },
     "addresses_provider": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
     "pool": "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
     "data_provider": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
     "rpc_host": "ethereum-rpc.publicnode.com",
-    "retrieved_at": "2026-10-10T13:23:48.779755+00:00",
+    "retrieved_at": "2026-10-10T14:09:49.211370+00:00",
     "reserves": {
       "WETH": {
         "underlying_address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
@@ -74,42 +74,42 @@
         "to": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
         "signature": "getPool()",
         "data": "0x026b1d5f",
-        "block_tag": "0x18f3484",
+        "block_tag": "0x18f3569",
         "result": "0x00000000000000000000000087870bca3f3fd6335c3f4ce8392d69350b4fa4e2"
       },
       {
         "to": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
         "signature": "getPoolDataProvider()",
         "data": "0xe860accb",
-        "block_tag": "0x18f3484",
+        "block_tag": "0x18f3569",
         "result": "0x0000000000000000000000000a16f2fcc0d44fae41cc54e079281d84a363becd"
       },
       {
         "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
         "signature": "ADDRESSES_PROVIDER()",
         "data": "0x0542975c",
-        "block_tag": "0x18f3484",
+        "block_tag": "0x18f3569",
         "result": "0x0000000000000000000000002f39d218133afab8f2b819b1066c7e434ad94e9e"
       },
       {
         "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
         "signature": "POOL()",
         "data": "0x7535d246",
-        "block_tag": "0x18f3484",
+        "block_tag": "0x18f3569",
         "result": "0x00000000000000000000000087870bca3f3fd6335c3f4ce8392d69350b4fa4e2"
       },
       {
         "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
         "signature": "getReserveConfigurationData(address)",
         "data": "0x3e150141000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-        "block_tag": "0x18f3484",
+        "block_tag": "0x18f3569",
         "result": "0x00000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000001f72000000000000000000000000000000000000000000000000000000000000206c000000000000000000000000000000000000000000000000000000000000290400000000000000000000000000000000000000000000000000000000000005dc00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
       },
       {
         "to": "0x0a16f2fcc0d44fae41cc54e079281d84a363becd",
         "signature": "getReserveConfigurationData(address)",
         "data": "0x3e150141000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-        "block_tag": "0x18f3484",
+        "block_tag": "0x18f3569",
         "result": "0x00000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000001d4c0000000000000000000000000000000000000000000000000000000000001e7800000000000000000000000000000000000000000000000000000000000028d200000000000000000000000000000000000000000000000000000000000003e800000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"
       }
     ],
@@ -133,28 +133,28 @@
           "to": "0x2f39d218133afab8f2b819b1066c7e434ad94e9e",
           "signature": "getPriceOracle()",
           "data": "0xfca513a8",
-          "block_tag": "0x18f3484",
+          "block_tag": "0x18f3569",
           "result": "0x00000000000000000000000054586be62e3c3580375ae3723c145253060ca0c2"
         },
         {
           "to": "0x54586be62e3c3580375ae3723c145253060ca0c2",
           "signature": "ADDRESSES_PROVIDER()",
           "data": "0x0542975c",
-          "block_tag": "0x18f3484",
+          "block_tag": "0x18f3569",
           "result": "0x0000000000000000000000002f39d218133afab8f2b819b1066c7e434ad94e9e"
         },
         {
           "to": "0x54586be62e3c3580375ae3723c145253060ca0c2",
           "signature": "getSourceOfAsset(address)",
           "data": "0x92bf2be0000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-          "block_tag": "0x18f3484",
+          "block_tag": "0x18f3569",
           "result": "0x0000000000000000000000005424384b256154046e9667ddfaaa5e550145215e"
         },
         {
           "to": "0x54586be62e3c3580375ae3723c145253060ca0c2",
           "signature": "getSourceOfAsset(address)",
           "data": "0x92bf2be0000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-          "block_tag": "0x18f3484",
+          "block_tag": "0x18f3569",
           "result": "0x0000000000000000000000003f73f03aa83b2a48ed27e964ed0fdb590332095b"
         }
       ]
