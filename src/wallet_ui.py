@@ -8,6 +8,7 @@ from src.wallet import WalletProviderError, fetch_wallet_position, wallet_qualit
 from src.wallet_dependencies import analyze_wallet_incident
 from src.wallet_viz import plot_wallet_graph
 from src.wallet_decision_ui import render_wallet_decision
+from src.wallet_mitigation_ui import render_wallet_mitigation
 from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
 
 
@@ -153,6 +154,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
         _render_relationship_evidence(linked, selected, incident, shock, incidents)
         return
     render_wallet_decision(linked)
+    render_wallet_mitigation(observation, linked)
     with st.expander('Portfolio arithmetic and model limitations'):
         st.dataframe([{'Measure': label, 'Baseline': f'${before[key]:,.2f}', 'Stressed': f'${after[key]:,.2f}'}
                       for label, key in [('Enabled collateral', 'collateral_usd'), ('All supplies', 'supplied_usd'),
