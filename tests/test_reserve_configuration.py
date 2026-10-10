@@ -413,7 +413,7 @@ def test_dashboard_demo_sourced_and_failed_refresh(rpc, monkeypatch):
         raise SourceError('mock RPC unavailable')
 
     monkeypatch.setattr(sources, 'fetch_market_snapshot', fail)
-    app.button[0].click().run(timeout=20)
+    next(button for button in app.button if button.label == '↻  Fetch public data').click().run(timeout=20)
     assert not app.exception
     assert app.session_state['snapshot'] == snapshot
     assert any('mock RPC unavailable' in error.value for error in app.error)
@@ -434,7 +434,7 @@ def test_dashboard_fetch_save_load_legacy_and_invalid(rpc, monkeypatch, tmp_path
     code = code.replace("SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'",
                         f'SAVED = Path({str(saved)!r})')
     app = AppTest.from_string(code).run(timeout=20)
-    app.button[0].click().run(timeout=20)
+    next(button for button in app.button if button.label == '↻  Fetch public data').click().run(timeout=20)
     assert not app.exception
     assert json.loads(saved.read_text(encoding='utf-8')) == snapshot
     next(button for button in app.button if button.label == 'Use illustrative demo').click().run(timeout=20)

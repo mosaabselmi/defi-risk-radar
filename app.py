@@ -13,6 +13,7 @@ from src.risk import (Position, Scenario, ScenarioType, ExecutionAssumptions,
 from src.sources import (DEMO_SNAPSHOT, SourceError, fetch_market_snapshot,
                          save_source_snapshot, validate_snapshot)
 from src.viz import get_palette, plot_graph, plot_health_curve
+from src.wallet_ui import render_wallet_discovery
 
 BASE_DIR = Path(__file__).resolve().parent
 SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'
@@ -424,5 +425,7 @@ with tab_method:
 - **Recommendation:** a sensitivity comparison for research, not financial advice or an automated trading signal.
 ''')
 
+st.divider()
+render_wallet_discovery()
 st.divider()
 st.markdown('<div class="smallprint">DeFi Risk Radar · Belem Capital challenge research prototype. No transactions, wallet keys, paid infrastructure or trade execution. Reserve parameters and configured oracle-source mappings are dated on-chain observations when available; other relationships remain modeled.</div>', unsafe_allow_html=True)
