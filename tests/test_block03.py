@@ -226,6 +226,7 @@ def test_quality_gate_stale_and_unreliable(fresh_snapshot, execution, tamper):
 def test_dashboard_switches_scenarios_and_keeps_graph_inspection_separate(fresh_snapshot):
     from streamlit.testing.v1 import AppTest
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
     app.session_state['snapshot'] = fresh_snapshot
     app.run(timeout=20)
     assert not app.exception
@@ -257,6 +258,7 @@ def test_dashboard_switches_scenarios_and_keeps_graph_inspection_separate(fresh_
 def test_dashboard_zero_position_stale_and_legacy(fresh_snapshot):
     from streamlit.testing.v1 import AppTest
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
     app.session_state['snapshot'] = fresh_snapshot
     app.run(timeout=20)
     app.number_input[0].set_value(0).run(timeout=20)
@@ -296,6 +298,7 @@ def test_dashboard_invalid_prices_monitor_without_crash(price):
     snapshot = copy.deepcopy(DEMO_SNAPSHOT)
     snapshot['prices']['WETH']['usd'] = price
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
     app.session_state['snapshot'] = snapshot
     app.run(timeout=20)
     assert not app.exception

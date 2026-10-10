@@ -171,7 +171,7 @@ def test_historical_ui_passes_explicit_block_and_explains_provider_failure(tmp_p
         raise wallet.WalletProviderError('Provider requires archive access (HTTP 403, RPC -32602)',
                                          {'kind': 'archive_access_required'})
     monkeypatch.setattr(ui, 'fetch_wallet_position', fail)
-    app, saved = dashboard(tmp_path)
+    app, saved = dashboard(tmp_path, mode='REAL PORTFOLIO ANALYSIS')
     before = copy.deepcopy(app.session_state['snapshot'])
     next(field for field in app.text_input if field.label == 'Ethereum wallet address').set_value(WALLET)
     next(box for box in app.checkbox if box.key == 'wallet_historical').check()

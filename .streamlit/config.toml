@@ -28,6 +28,9 @@ redBackgroundColor = "#39252D"
 yellowColor = "#D4AD6C"
 yellowTextColor = "#E7C995"
 yellowBackgroundColor = "#352F24"
+blueColor = "#A8BAC8"
+blueTextColor = "#D5DEE5"
+blueBackgroundColor = "#202D3D"
 chartCategoricalColors = ["#A8BAC8", "#DA7D85", "#D4AD6C", "#77B394"]
 
 [theme.sidebar]
@@ -64,6 +67,9 @@ redBackgroundColor = "#FBECEF"
 yellowColor = "#86611E"
 yellowTextColor = "#725014"
 yellowBackgroundColor = "#FBF3E3"
+blueColor = "#405E75"
+blueTextColor = "#304C62"
+blueBackgroundColor = "#EAF0F5"
 chartCategoricalColors = ["#405E75", "#A33E49", "#86611E", "#3D7756"]
 
 [theme.light.sidebar]

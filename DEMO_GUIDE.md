@@ -1,8 +1,25 @@
-# DeFi Risk Radar — two-minute demonstration
+# DeFi Risk Radar — jury demonstration
 
 Start from the project directory with `.venv\Scripts\python.exe -m streamlit run app.py`.
 Public access uses configurable `ETH_RPC_URL`; the default is Ethereum PublicNode.
 No key, wallet, transaction or paid API is required. Fetch before presenting; public services can time out or rate-limit.
+
+## Two minutes: real portfolio intelligence
+
+1. **0:00 — Import an account.** Start in **REAL PORTFOLIO ANALYSIS**, click **Use public example**, then **Inspect Aave wallet**. The example button only fills a public address; inspection reads current state unless the historical checkbox is explicitly selected. Import before the presentation and retain the browser session. Holdings and HF can differ from previous observations.
+2. **0:20 — Establish the risk baseline.** Show the account, original block and observation time, contract-reported HF, stressed HF, marked equity change and risk warning. Successful import collapses the controls to keep this overview visible. HF below 1 denotes modeled liquidation eligibility, not guaranteed execution or realized damage.
+3. **0:40 — Stress the actual collateral.** Select an enabled collateral asset and a −30% market-price shock. All imported debt assets, including tiny balances, remain included. Show how the HF and equity change respond. The mathematical model reconciles baseline HF against the Pool; unsupported or unreliable evidence blocks quantified results.
+4. **1:00 — Trace the selected exposure.** Follow the dependency graph from the account through its asset and reserve components. Solid edges have pinned on-chain evidence, dashed edges are modeled, dotted edges remain unresolved. Unknown source contracts stay unknown; an oracle valuation read does not prove a configured source mapping.
+5. **1:20 — Compare assumptions transparently.** Expand **User assumptions**, enter an aggregate traded notional for a hypothetical mitigation plan, and use the displayed 10% probability and 100% avoidance only as explicitly hypothetical assumptions. Show expected downside, assumed cost and break-even conditions. Neither the notional nor avoidance is inferred from executable liquidity. Full withdrawal may require debt repayment; the actionable result remains MONITOR because execution is unverified.
+6. **1:45 — Show the boundary of the model.** Select an oracle-source outage. Dependency paths remain visible, while dollar impact is **NOT QUANTIFIED**. Open an evidence expander only if asked. A price shock never claims an oracle malfunction.
+
+**Offline and historical fallback:** A real-wallet observation lasts only in the current browser session; no wallet archive is automatically loaded. An existing verified dated observation requires explicit **Historical scenario replay · NOT LIVE** to run retrospective arithmetic. Its timestamp and block do not change, and it cannot produce a current STAY/EXIT signal. If live import fails, show the error and switch to **SYNTHETIC PLAYGROUND** for the clearly labeled illustrative demonstration below. Do not present that fallback as an imported account. Free RPC restrictions, archive access and the freshness policy can block the live demonstration.
+
+**Appearance:** Use native Settings → Theme for Light or Dark, then **Refresh theme styling** in the sidebar to synchronize Python-rendered charts. Review at 1366×768 and 1920×1080 before presenting.
+
+## Synthetic playground walkthrough
+
+Select **SYNTHETIC PLAYGROUND**, then open the sidebar for source and illustrative position controls. These inputs never change the real-wallet observation.
 
 1. **0:00 — Fetch and establish evidence.** Click **Fetch public data**. In **Sources & evidence**, show the original Ethereum block, hash and retrieval timestamp. Reserve parameters and oracle-source mappings share that block; DefiLlama spot prices have separate observation timestamps and are not Aave oracle answers. A successful fetch saves a validated snapshot; a failed fetch preserves the previous file.
 2. **0:20 — Show the graph.** Point out WETH/USDC configured source addresses and the two evidenced oracle-to-source edges. Arrows mean “depends on.” The other edges are modeled. Full evidence is in the expander. **Independent graph inspection** and **Economic scenario** are separate controls: a market-price shock does not imply a feed failure.

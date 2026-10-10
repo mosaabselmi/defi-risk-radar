@@ -95,6 +95,7 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
                            arrowcolor=color,arrowwidth=1.7,name=u+' → '+v)
     for key,data in graph.nodes(data=True):
         selected, affected = key == focus, key in highlighted
+        unresolved = key.startswith('source:') and not data.get('contract_address')
         color = palette['amber'] if selected or affected else palette['border']
         fill = palette['monitor_bg'] if selected or affected else palette['surface']
         points = _box(positions[key],sizes[key])
@@ -105,15 +106,19 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
         if data.get('supplied_units'):
             details += '<br>Supply: '+escape(data['supplied_units'])+'<br>Debt: '+escape(data['debt_units'])
         fig.add_trace(go.Scatter(x=[p[0] for p in points],y=[p[1] for p in points],mode='lines',fill='toself',hoveron='fills',
-            fillcolor=fill,line=dict(color=color,width=2.5 if selected else 1.4),showlegend=False,name=key,
+            fillcolor=fill,line=dict(color=color,width=2.5 if selected else 1.4,
+                                     dash='dot' if unresolved else 'solid'),showlegend=False,name=key,
             hovertemplate=details+'<extra></extra>'))
         x,y = positions[key]
         label = escape(data['label']).replace('\n','<br>').replace(' / ', '<br>')
-        fig.add_annotation(x=x,y=y,text=label,showarrow=False,font=dict(color=palette['ink'],size=12),name=key)
+        # Compact display name; the full underlying-token role remains in hover
+        # and evidence. This keeps the larger labels within narrow token boxes.
+        label = label.replace('underlying token', 'ERC-20 token')
+        fig.add_annotation(x=x,y=y,text=label,showarrow=False,font=dict(color=palette['ink'],size=14),name=key)
     groups = max(1,math.ceil(len(graph.graph['asset_order'])/3))
     fig.update_layout(height=560+max(0,groups-1)*320,margin=dict(l=5,r=5,t=5,b=5),showlegend=False,
         paper_bgcolor=palette['surface'],plot_bgcolor=palette['surface'],dragmode=False,
         xaxis=dict(visible=False,fixedrange=True,range=[-extent-.3,extent+.3]),
         yaxis=dict(visible=False,fixedrange=True,range=[positions['ethereum'][1]-.6,2.6]),
-        hoverlabel=dict(bgcolor=palette['surface'],bordercolor=palette['border'],font=dict(color=palette['ink'],size=13)))
+        hoverlabel=dict(bgcolor=palette['surface'],bordercolor=palette['border'],font=dict(color=palette['ink'],size=14)))
     return fig

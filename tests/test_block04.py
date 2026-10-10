@@ -14,13 +14,14 @@ from test_reserve_configuration import rpc, addresses, Response
 from test_block03 import fresh_snapshot
 
 
-def dashboard(tmp_path, snapshot=None):
+def dashboard(tmp_path, snapshot=None, mode='SYNTHETIC PLAYGROUND'):
     from streamlit.testing.v1 import AppTest
     saved = tmp_path / 'snapshot.json'
     code = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8')
     code = code.replace("SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'",
                         f'SAVED = Path({str(saved)!r})')
     app = AppTest.from_string(code)
+    app.session_state['application_mode'] = mode
     if snapshot is not None:
         app.session_state['snapshot'] = copy.deepcopy(snapshot)
     return app.run(timeout=20), saved

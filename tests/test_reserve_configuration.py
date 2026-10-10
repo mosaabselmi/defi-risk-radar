@@ -396,7 +396,9 @@ def test_dashboard_demo_sourced_and_failed_refresh(rpc, monkeypatch):
     from streamlit.testing.v1 import AppTest
     import src.sources as sources
 
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run(timeout=20)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
+    app.run(timeout=20)
     assert not app.exception
     assert app.metric[2].value == '1.33'
     assert any('Assumed liquidation threshold' in widget.label for widget in app.slider)
@@ -433,7 +435,9 @@ def test_dashboard_fetch_save_load_legacy_and_invalid(rpc, monkeypatch, tmp_path
     code = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8')
     code = code.replace("SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'",
                         f'SAVED = Path({str(saved)!r})')
-    app = AppTest.from_string(code).run(timeout=20)
+    app = AppTest.from_string(code)
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
+    app.run(timeout=20)
     next(button for button in app.button if button.label == '↻  Fetch public data').click().run(timeout=20)
     assert not app.exception
     assert json.loads(saved.read_text(encoding='utf-8')) == snapshot

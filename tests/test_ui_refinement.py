@@ -130,7 +130,9 @@ def test_native_theme_refresh_preserves_economic_values_and_choice(monkeypatch):
     from streamlit.testing.v1 import AppTest
     mode = SimpleNamespace(type='dark')
     monkeypatch.setattr(type(st.context), 'theme', property(lambda self: mode))
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run(timeout=20)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
+    app.run(timeout=20)
     assert not app.exception
     original = [metric.value for metric in app.metric]
     mode.type = 'light'  # Native browser context after choosing Settings > Theme > Light.
@@ -197,7 +199,9 @@ def test_native_page_text_and_metrics_are_not_overridden_by_stale_python_theme(m
     import streamlit as st
     from streamlit.testing.v1 import AppTest
     monkeypatch.setattr(type(st.context), 'theme', property(lambda self: SimpleNamespace(type=theme)))
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py')).run(timeout=20)
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
+    app.run(timeout=20)
     assert not app.exception
     css = app.markdown[0].value
     for selector in ('hero', 'kicker', 'sub', 'section-title', 'section-eyebrow', 'smallprint'):

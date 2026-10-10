@@ -293,7 +293,7 @@ def test_wallet_ui_isolated_and_failed_refresh_clears_wallet(tmp_path, rpc, monk
     import src.wallet_ui as ui
     result = fetch(rpc)
     monkeypatch.setattr(ui, 'fetch_wallet_position', lambda wallet: result)
-    app, saved = dashboard(tmp_path)
+    app, saved = dashboard(tmp_path, mode='REAL PORTFOLIO ANALYSIS')
     before = copy.deepcopy(app.session_state['snapshot'])
     next(field for field in app.text_input if field.label == 'Ethereum wallet address').set_value(WALLET)
     click(app, 'Inspect Aave wallet')
@@ -319,7 +319,7 @@ def test_empty_wallet_ui_has_no_wallet_score(tmp_path, rpc, monkeypatch):
     rpc.flags = 0
     result = fetch(rpc)
     monkeypatch.setattr(ui, 'fetch_wallet_position', lambda wallet: result)
-    app, saved = dashboard(tmp_path)
+    app, saved = dashboard(tmp_path, mode='REAL PORTFOLIO ANALYSIS')
     click(app, 'Inspect Aave wallet')
     assert any('No nonzero supplied or borrowed' in info.value for info in app.info)
     assert not any(metric.label == 'Contract-reported HF' for metric in app.metric)

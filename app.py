@@ -20,7 +20,7 @@ SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'
 
 st.set_page_config(
     page_title='DeFi Risk Radar | BSA Hackathon Prototype', page_icon='◈',
-    layout='wide', initial_sidebar_state='expanded',
+    layout='wide', initial_sidebar_state='collapsed',
 )
 # Streamlit's supported read-only API; no config mutation, DOM scripting or fake selector.
 # The native Settings selector persists the choice. A rerun synchronizes Python charts.
@@ -72,6 +72,32 @@ if 'last_error' not in st.session_state:
 if 'snapshot_origin' not in st.session_state:
     st.session_state.snapshot_origin = 'session'
 
+
+st.markdown('<div class="kicker">AAVE V3 / ETHEREUM · READ-ONLY INTELLIGENCE</div><div class="hero">DeFi Risk Radar</div>', unsafe_allow_html=True)
+st.caption('Trace portfolio dependencies. Stress an incident. Compare economics with explicit assumptions. Independent BSA prototype; not an official Belem Capital product.')
+mode = st.radio('Analysis mode', ['REAL PORTFOLIO ANALYSIS', 'SYNTHETIC PLAYGROUND'], horizontal=True, key='application_mode')
+# Keep explicit widget choices when their mode is hidden (native widget cleanup
+# otherwise discards controls at the end of the rerun). No portfolio values mix.
+synthetic_keys = ('synthetic_collateral', 'synthetic_debt', 'synthetic_lt', 'synthetic_notional',
+                  'synthetic_spread', 'synthetic_slippage', 'synthetic_fee', 'synthetic_gas',
+                  'economic_scenario', 'graph_component', 'WETH_shock', 'USDC_shock',
+                  'scenario_probability', 'include_liquidation', 'liquidation_fraction')
+hidden_keys = synthetic_keys if mode == 'REAL PORTFOLIO ANALYSIS' else tuple(key for key in st.session_state if key.startswith('wallet_'))
+for key in hidden_keys:
+    if key in st.session_state:
+        st.session_state[key] = st.session_state[key]
+if mode == 'REAL PORTFOLIO ANALYSIS':
+    with st.sidebar:
+        st.markdown('### Research workspace')
+        st.caption('Aave V3 · Ethereum mainnet. Public addresses only; no connection, signing or transactions.')
+        st.caption('Appearance: Settings (⋮) → Theme → Light / Dark. Refresh charts after changing theme.')
+        st.button('Refresh theme styling', key='refresh_theme', width='stretch')
+        st.caption('The synthetic playground uses separate illustrative inputs and source snapshots.')
+    render_wallet_discovery()
+    st.caption('Research prototype · Execution feasibility is unverified. No transactions or ownership claims.')
+    st.stop()
+st.info('SYNTHETIC PLAYGROUND · Manually entered WETH / USDC balances. These inputs never control an imported wallet.')
+
 with st.sidebar:
     st.markdown('### 01 / Data source')
     if st.button('↻  Fetch public data', width='stretch', type='primary'):
@@ -108,15 +134,15 @@ with st.sidebar:
     st.divider()
     st.markdown('### 02 / Position')
     st.caption('Synthetic investor balances, not a connected wallet.')
-    collateral = st.number_input('WETH collateral · units', min_value=0.0, value=4.0, step=0.25)
-    debt = st.number_input('USDC debt · units', min_value=0.0, value=6000.0, step=500.0)
+    collateral = st.number_input('WETH collateral · units', min_value=0.0, value=4.0, step=0.25, key='synthetic_collateral')
+    debt = st.number_input('USDC debt · units', min_value=0.0, value=6000.0, step=500.0, key='synthetic_debt')
     reserve_config = st.session_state.snapshot.get('reserve_configuration')
     if reserve_config:
         lt = reserve_config['reserves']['WETH']['liquidation_threshold_bps'] / 100
         st.caption(f'WETH base liquidation threshold · {lt:g}% '
                    f"(on-chain snapshot, block {reserve_config['block']['number']:,}; no eMode)")
     else:
-        lt = st.slider('Assumed liquidation threshold · %', 10, 95, 80)
+        lt = st.slider('Assumed liquidation threshold · %', 10, 95, 80, key='synthetic_lt')
     bonus = ((reserve_config['reserves']['WETH']['liquidation_bonus_bps'] - 10000) / 10000
              if reserve_config and reserve_config['reserves']['WETH']['liquidation_bonus_bps'] >= 10000
              else None)
@@ -157,13 +183,13 @@ with st.sidebar:
         st.error('SCENARIO RESULT · MONITOR: prices or position values are invalid.')
         st.stop()
     notional = st.number_input('Aggregate traded notional · USD (assumption)', min_value=0.0,
-                               value=float(default_notional), step=100.0)
+                               value=float(default_notional), step=100.0, key='synthetic_notional')
     st.caption('Default assumes gross collateral sale plus debt purchase as trading legs. '
                'Edit for the intended unwind; repayment principal is not an execution fee.')
-    spread = st.number_input('Spread · basis points (assumption)', min_value=0.0, max_value=10000.0, value=10.0)
-    slippage = st.number_input('Slippage · basis points (assumption)', min_value=0.0, max_value=10000.0, value=20.0)
-    trading_fee = st.number_input('Trading fee · basis points (assumption)', min_value=0.0, max_value=10000.0, value=5.0)
-    gas = st.number_input('Aggregate gas · USD (assumption)', min_value=0.0, value=10.0, step=5.0)
+    spread = st.number_input('Spread · basis points (assumption)', min_value=0.0, max_value=10000.0, value=10.0, key='synthetic_spread')
+    slippage = st.number_input('Slippage · basis points (assumption)', min_value=0.0, max_value=10000.0, value=20.0, key='synthetic_slippage')
+    trading_fee = st.number_input('Trading fee · basis points (assumption)', min_value=0.0, max_value=10000.0, value=5.0, key='synthetic_fee')
+    gas = st.number_input('Aggregate gas · USD (assumption)', min_value=0.0, value=10.0, step=5.0, key='synthetic_gas')
     st.caption('Execution approximation only, not a live or executable quote. '
                'Debt must be repaid or otherwise unwound before a full collateral withdrawal.')
 
@@ -191,11 +217,6 @@ impact = d.impact
 g = build_dependency_graph(snapshot)
 affected = affected_by_failure(g, incident)
 
-st.markdown('<div class="kicker">BSA EPFL 2026 / BELEM CAPITAL TRACK</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero">DeFi Risk Radar</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub">Trace what a position depends on. Simulate a disruption. Explain the risk decision.</div>', unsafe_allow_html=True)
-st.caption('Independent BSA hackathon prototype inspired by the sponsor visual identity. Not an official Belem Capital product.')
-st.markdown('<span class="chip">AAVE V3 · ETHEREUM</span><span class="chip chip-muted">SINGLE-POSITION RESEARCH</span><span class="chip chip-muted">NO LIVE TRADES</span>', unsafe_allow_html=True)
 
 if sourced:
     historical = archived or bool(quality_issues)
@@ -425,7 +446,5 @@ with tab_method:
 - **Recommendation:** a sensitivity comparison for research, not financial advice or an automated trading signal.
 ''')
 
-st.divider()
-render_wallet_discovery()
 st.divider()
 st.markdown('<div class="smallprint">DeFi Risk Radar · Belem Capital challenge research prototype. No transactions, wallet keys, paid infrastructure or trade execution. Reserve parameters and configured oracle-source mappings are dated on-chain observations when available; other relationships remain modeled.</div>', unsafe_allow_html=True)
