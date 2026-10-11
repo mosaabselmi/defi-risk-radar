@@ -32,6 +32,23 @@ palette = get_palette(theme_mode)
 presentation_css = '''
 <style>
 /* Owned product classes and key-scoped layouts; native controls retain theme tokens. */
+@media (min-width: 900px) {
+    .stAppHeader {
+        position: relative !important;
+    }
+
+    .stAppHeader .rc-overflow {
+        position: absolute !important;
+        left: 50% !important;
+        top: 8px !important;
+        transform: translateX(-50%) !important;
+        width: 360px !important;
+        min-width: 360px !important;
+        margin: 0 !important;
+        display: flex !important;
+        justify-content: center !important;
+    }
+}
 .st-key-website_content {max-width:1440px;margin-inline:auto;margin-top:-3rem;}
 .st-key-home_capabilities {margin-top:1.5rem;align-items:stretch;}
 .st-key-home_capabilities > div {height:100%;}
@@ -62,30 +79,7 @@ presentation_css = '''
     margin: 0 0 1.2rem;
     color: inherit;
 }
-/* Center Home / Analyze / About relative to the viewport */
-@media (min-width: 900px) {
-    .stAppHeader .rc-overflow {
-        position: fixed !important;
-        left: 50% !important;
-        top: 0.5rem;
-        transform: translateX(-50%) !important;
-        width: max-content !important;
-        margin: 0 !important;
-        display: flex !important;
-        justify-content: center !important;
-        z-index: 10;
-    }
-}
 
-/* Keep Streamlit's normal navigation positioning on mobile */
-@media (max-width: 899px) {
-    .stAppHeader .rc-overflow {
-        position: static !important;
-        transform: none !important;
-        width: auto !important;
-        margin: 0 !important;
-    }
-}
 .landing-hero {max-width:1040px;padding:1.4rem 0 .8rem;}
 .landing-hero h1 {font-size:clamp(2.4rem,4.2vw,4.4rem);font-weight:650;letter-spacing:-.045em;line-height:1.12;margin:.6rem 0 1.1rem;color:inherit;}
 .landing-hero p {max-width:740px;font-size:1.1rem;line-height:1.65;color:inherit;}
@@ -114,6 +108,16 @@ presentation_css = '''
 .decision-stay {background:#19332C;border-color:#77B394;color:#A5D3B9;}
 .decision-unknown {background:#352F24;border-color:#D4AD6C;color:#E7C995;}
 .smallprint {color:inherit;font-size:.85rem;line-height:1.65;}
+/* Reduce space between navigation and page title */
+.stMainBlockContainer {
+    padding-top: 1.5rem !important;
+}
+
+@media (min-width: 900px) {
+    .stMainBlockContainer {
+        padding-top: 3.5rem !important;
+    }
+}
 /* Native containers and metrics keep native surfaces and text, including during theme changes. */
 </style>
 '''
