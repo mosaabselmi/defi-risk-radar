@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 
 from src.risk import stress_position
 
+MODELED_EDGE_DASH = '12px,8px'
+
 PALETTES = {
     'dark': dict(ink='#F2F3F1', muted='#A8BAC8', accent='#BCCAD5',
                  border='#62778A', surface='#202734', red='#DA7D85', amber='#D4AD6C',
@@ -109,7 +111,7 @@ def plot_graph(g, failed, theme='dark'):
         fig.add_trace(go.Scatter(
             x=[point[0] for point in route], y=[point[1] for point in route],
             mode='lines', line=dict(color=color, width=2 if verified else 1.5,
-                                    dash='solid' if verified else 'dash'),
+                                    dash='solid' if verified else MODELED_EDGE_DASH),
             name=f'{u} → {v}', meta=dict(source=u, target=v, verified=verified),
             hovertemplate=f'<b>{escape(u)} → {escape(v)}</b><br>{evidence}<br>'
                           + escape(meta.get('relation', '')) + '<extra></extra>',
@@ -149,7 +151,7 @@ def plot_graph(g, failed, theme='dark'):
             hovertemplate=hover + '<extra></extra>', showlegend=False,
         ))
         label = ('Aave Price<br>Oracle' if node == 'Aave Price Oracle' else
-                 'Ethereum<br>Shared infrastructure' if node == 'Ethereum' else escape(node))
+                 'Ethereum<br>Infrastructure' if node == 'Ethereum' else escape(node))
         fig.add_annotation(x=x, y=y, text=label, showarrow=False,
                            font=dict(size=14, color=palette['ink'], family='Arial'))
     fig.update_layout(

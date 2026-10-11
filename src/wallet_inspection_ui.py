@@ -34,7 +34,8 @@ def render_dependency_inspection(observation, analysis, inspection):
                ' · Trace relationships: ' + ', '.join(inspection['trace_evidence_levels']))
     address = inspection['contract_address']
     if address:
-        st.caption(('Account address (not ownership proof): ' if inspection['component'] == 'position' else 'Contract address: ') + address)
+        st.caption('Account address (not ownership proof):' if inspection['component'] == 'position' else 'Contract address:')
+        st.code(address, language=None, wrap_lines=True)
     else:
         st.caption('No separate contract address established for this component.')
     st.caption(inspection['reason'])

@@ -3,7 +3,7 @@ import math
 from html import escape
 
 import plotly.graph_objects as go
-from src.viz import get_palette
+from src.viz import get_palette, MODELED_EDGE_DASH
 
 
 def wallet_layout(graph):
@@ -82,7 +82,7 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
             route = [start,(start[0],middle),(end[0],middle),end]
         level = evidence['evidence_level']
         color = palette['accent'] if level == 'verified' else palette['muted']
-        dash = {'verified':'solid','modeled':'dash','unknown':'dot'}[level]
+        dash = {'verified':'solid','modeled':MODELED_EDGE_DASH,'unknown':'dot'}[level]
         fig.add_trace(go.Scatter(x=[p[0] for p in route],y=[p[1] for p in route],mode='lines',
             line=dict(color=color,dash=dash,width=1.7),showlegend=False,
             meta=dict(source=u,target=v,evidence_level=level),
@@ -117,7 +117,12 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
         label = escape(data['label']).replace('\n','<br>').replace(' / ', '<br>')
         # Compact display name; the full underlying-token role remains in hover
         # and evidence. This keeps the larger labels within narrow token boxes.
-        label = label.replace('underlying token', 'ERC-20 token')
+        label = label.replace('underlying token', 'ERC-20').replace('debt token', 'debt')
+        label = label.replace('Imported position', 'Imported<br>position').replace('Aave Price Oracle', 'Aave Price<br>Oracle')
+        label = label.replace('enabled collateral', 'Collateral').replace('variable debt', 'Debt').replace('Aave valuation', 'Oracle value')
+        if data.get('contract_address') and key.startswith('source:'):
+            address = data['contract_address']
+            label = label.replace(address[:8] + '…' + address[-4:], address[:6] + '…' + address[-4:])
         fig.add_annotation(x=x,y=y,text=label,showarrow=False,font=dict(color=palette['ink'],size=14),name=key)
     groups = max(1,math.ceil(len(graph.graph['asset_order'])/3))
     fig.update_layout(height=560+max(0,groups-1)*320,margin=dict(l=5,r=5,t=5,b=5),showlegend=False,

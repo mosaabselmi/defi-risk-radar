@@ -2,6 +2,7 @@
 import streamlit as st
 
 from src.wallet_mitigation import analyze_wallet_mitigation
+from src.presentation import metric_cards
 
 
 def render_wallet_mitigation(observation, analysis):
@@ -23,7 +24,7 @@ def render_wallet_mitigation(observation, analysis):
         if result['historical_replay']:
             st.caption('HISTORICAL / NOT LIVE · Retrospective repayment arithmetic; no current action signal.')
         post = result['post_repayment']
-        a, b, c = st.columns(3)
+        a, b, c = metric_cards(3, key='wallet_repayment_metrics')
         a.metric('Full debt · USD', f"${result['pinned_full_debt_usd']:,.2f}", border=True)
         b.metric('Repayment · USD', f"${result['repayment_requirement_usd']:,.2f}", border=True)
         c.metric('Post-repay HF', 'N/A' if post['health_factor'] is None else f"{post['health_factor']:.4f}", border=True)

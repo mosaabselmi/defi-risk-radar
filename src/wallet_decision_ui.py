@@ -1,6 +1,7 @@
 """Assumption inputs and conservative conclusions for connected wallet analysis."""
 import streamlit as st
 from src.wallet_decision import WalletDecisionAssumptions, compare_wallet_economics
+from src.presentation import metric_cards
 
 
 def render_wallet_decision(analysis):
@@ -31,7 +32,7 @@ def render_wallet_decision(analysis):
         st.warning(result['recommendation'])
         threshold = result['breakeven_probability']
         threshold_label = 'N/A' if threshold is None else f'{threshold*100:.2f}%'
-        cards = st.columns(4)
+        cards = metric_cards(4, key='wallet_economic_metrics')
         cards[0].metric('Expected downside', f"${result['expected_scenario_downside_usd']:,.2f}", border=True)
         cards[1].metric('Assumed avoidance', f"{result['assumptions']['avoided_downside_fraction']*100:.2f}%", border=True)
         cards[2].metric('Hypothetical cost', f"${result['hypothetical_cost_usd']:,.2f}", border=True)

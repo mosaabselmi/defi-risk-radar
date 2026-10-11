@@ -14,6 +14,7 @@ from src.sources import (DEMO_SNAPSHOT, SourceError, fetch_market_snapshot,
                          save_source_snapshot, validate_snapshot)
 from src.viz import get_palette, plot_graph, plot_health_curve
 from src.wallet_ui import render_wallet_discovery
+from src.presentation import metric_cards, responsive_row
 
 BASE_DIR = Path(__file__).resolve().parent
 SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'
@@ -90,7 +91,7 @@ if mode == 'REAL PORTFOLIO ANALYSIS':
     with st.sidebar:
         st.markdown('### Research workspace')
         st.caption('Aave V3 · Ethereum mainnet. Public addresses only; no connection, signing or transactions.')
-        st.caption('Appearance: Settings (⋮) → Theme → Light / Dark. Refresh charts after changing theme.')
+        st.caption('Appearance: ⋮ → Light / Dark. Refresh charts after changing theme.')
         st.button('Refresh theme styling', key='refresh_theme', width='stretch')
         st.caption('The synthetic playground uses separate illustrative inputs and source snapshots.')
     render_wallet_discovery()
@@ -128,7 +129,7 @@ with st.sidebar:
         st.error('Source refresh failed: ' + st.session_state.last_error)
         st.caption('No replacement data was loaded or saved. Retry Fetch public data, '
                    'load the last saved source snapshot (if available), or use the illustrative demo above.')
-    st.caption('Appearance: Settings (⋮) → Theme → Light / Dark. Streamlit remembers the choice. '
+    st.caption('Appearance: ⋮ → Light / Dark. Streamlit remembers the choice. '
                'Page text and widgets follow immediately. Refresh styling to synchronize charts and paired cards.')
     st.button('Refresh theme styling', key='refresh_theme', width='stretch')
     st.divider()
@@ -232,7 +233,7 @@ else:
     st.markdown('<div class="mode-banner mode-demo"><b>ILLUSTRATIVE MODE</b> · No live source data loaded. Select <b>Fetch public data</b> in the sidebar to retrieve published registry records and spot-price observations.</div>', unsafe_allow_html=True)
 st.caption('Key separation: base reserve parameters and configured oracle sources are sourced only when block evidence is shown. Other relationships, holdings and incident outcomes remain modeled; spot prices are not Aave oracle prices.')
 
-m1, m2, m3, m4 = st.columns(4, gap='medium')
+m1, m2, m3, m4 = metric_cards(4, key='synthetic_metrics')
 m1.metric('Collateral value', f'${p.collateral_usd:,.0f}', f'{collateral:g} WETH', delta_color='off', border=True)
 m2.metric('Borrowed value', f'${p.debt_usd:,.0f}', f'{debt:,.0f} USDC', delta_color='off', border=True)
 m3.metric('Base HF', '∞' if p.health_factor == float('inf') else f'{p.health_factor:.2f}', border=True)
@@ -245,7 +246,8 @@ m4.caption('Outage impact is not quantified; observed HF is unchanged.' if kind.
            else 'Health factor after the selected asset-price shock.')
 
 st.write('')
-left, right = st.columns([1.1, 1], gap='small')
+panels = responsive_row('synthetic_panels', 520)
+left, right = panels.container(), panels.container()
 with left:
     with st.container(border=True, key='dependency_panel', gap='small'):
         st.markdown('<div class="section-eyebrow">01 / Position structure</div><div class="section-title">Dependency explorer</div>', unsafe_allow_html=True)
@@ -269,7 +271,7 @@ with right:
         st.markdown(f'<div class="decision {cls}"><strong>SCENARIO RESULT · {recommendation}</strong><span>{escape(reason)}</span></div>', unsafe_allow_html=True)
         if quality_issues:
             st.warning('MONITOR / INSUFFICIENT CURRENT DATA')
-        c1, c2 = st.columns(2, gap='small')
+        c1, c2 = metric_cards(2, key='synthetic_cost_metrics')
         c1.metric('Expected downside', 'N/A' if d.expected_downside_usd is None
                   else f'${d.expected_downside_usd:,.0f}', border=True)
         c1.caption('Not quantified: an oracle outage alone does not establish a dollar loss.'
@@ -309,7 +311,8 @@ with right:
 st.write('')
 tab_stress, tab_sources, tab_method = st.tabs(['Stress-test diagnostics', 'Sources & evidence', 'Model scope & limitations'])
 with tab_stress:
-    a, b = st.columns([1.25, 1], gap='large')
+    diagnostics = responsive_row('synthetic_diagnostics', 480)
+    a, b = diagnostics.container(), diagnostics.container()
     with a:
         st.markdown('#### When does liquidation risk begin?')
         st.plotly_chart(plot_health_curve(p, shock, asset=kind.asset,

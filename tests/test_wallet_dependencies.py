@@ -169,7 +169,7 @@ def test_plot_theme_nodes_labels_arrows_and_evidence_styles(observed,theme):
     assert len(node_traces) == len(graph)
     assert all(len(t.x)>30 for t in node_traces)
     assert len([a for a in figure.layout.annotations if a.showarrow]) == graph.number_of_edges()
-    assert {t.line.dash for t in figure.data if t.meta} == {'solid','dash','dot'}
+    assert {t.line.dash for t in figure.data if t.meta} == {'solid','12px,8px','dot'}
     assert all(a.font.color == colors['ink'] for a in figure.layout.annotations if not a.showarrow)
 
 

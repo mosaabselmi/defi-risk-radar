@@ -11,6 +11,7 @@ from src.wallet_decision_ui import render_wallet_decision
 from src.wallet_mitigation_ui import render_wallet_mitigation
 from src.wallet_inspection_ui import select_dependency, render_dependency_inspection
 from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
+from src.presentation import metric_cards
 
 
 PUBLIC_EXAMPLE = '0x24a416e5c00c7b47a5f8a300984579b53919330b'
@@ -116,7 +117,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
         if force_historical_replay:
             st.session_state.wallet_stress_replay = True
         replay = replay_column.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay',
-                                        disabled=force_historical_replay)
+                                        disabled=force_historical_replay, wrap=True)
         st.caption('Market-price shocks are hypothetical. An oracle or RPC outage never implies a price crash. Historical replay does not refresh the evidence.')
     linked = analyze_wallet_incident(observation, selected, incident, shock / 100, historical_replay=replay)
     result = linked['financial']
@@ -135,7 +136,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
         else:
             before, after = result['baseline'], result['stressed']
             st.markdown('#### Portfolio risk overview')
-            a,b,c,d = st.columns(4, gap='medium')
+            a,b,c,d = metric_cards(4, key='wallet_risk_metrics')
             a.metric('Contract-reported HF', 'N/A · no debt' if result['reported_health_factor'] is None else f"{result['reported_health_factor']:.4f}", border=True)
             b.metric('Stressed HF · conservative', 'N/A · no debt' if after['health_factor'] is None else f"{after['health_factor']:.4f}", border=True)
             c.metric('Change in marked equity', f"${result['equity_change_usd']:,.2f}", border=True)
@@ -200,11 +201,11 @@ def render_wallet_discovery():
     with import_panel:
         title, example = st.columns([3,1], vertical_alignment='center')
         title.markdown('#### Import a real Aave portfolio')
-        example.button('Use public example', on_click=_use_public_example, width='stretch')
+        example.button('Use public example', on_click=_use_public_example, width='stretch', wrap=True)
         with st.form('wallet_discovery_form', border=False):
             field, action = st.columns([4,1], vertical_alignment='bottom')
             wallet = field.text_input('Ethereum wallet address', key='wallet_address_input', placeholder=PUBLIC_EXAMPLE)
-            submitted = action.form_submit_button('Inspect Aave wallet', type='primary', width='stretch')
+            submitted = action.form_submit_button('Inspect Aave wallet', type='primary', width='stretch', wrap=True)
             with st.expander('Historical block and read-only safeguards'):
                 historical = st.checkbox('Read historical block 26,163,470 · NOT LIVE', key='wallet_historical')
                 st.caption('Historical reads require an archive-capable ETH_RPC_URL. A failure never substitutes the current block. Public example holdings are not assumed to be current. An entered address is not a claim of ownership. No wallet connection or signing.')

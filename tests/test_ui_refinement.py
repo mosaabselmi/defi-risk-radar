@@ -11,7 +11,7 @@ import pytest
 from src.dependencies import build_dependency_graph
 from src.sources import DEMO_SNAPSHOT
 from src.risk import Position
-from src.viz import (LAYOUT, NODE_SIZES, edge_route, get_palette,
+from src.viz import (LAYOUT, NODE_SIZES, MODELED_EDGE_DASH, edge_route, get_palette,
                      plot_graph, plot_health_curve)
 from test_reserve_configuration import rpc, addresses
 from test_block03 import fresh_snapshot
@@ -47,7 +47,7 @@ def test_graph_preserves_topology_direction_and_highlighting(fresh_snapshot, the
         dx, dy = trace.x[-1]-trace.x[-2], trace.y[-1]-trace.y[-2]
         assert (arrow.x-arrow.ax)*dx + (arrow.y-arrow.ay)*dy > 0
         verified = graph.edges[source, target]['verified_onchain']
-        assert trace.line.dash == ('solid' if verified else 'dash')
+        assert trace.line.dash == ('solid' if verified else MODELED_EDGE_DASH)
         assert trace.meta['verified'] == verified
     nodes = {trace.name: trace for trace in figure.data if trace.fill == 'toself'}
     assert set(nodes) == set(graph.nodes)
@@ -66,7 +66,7 @@ def test_graph_preserves_topology_direction_and_highlighting(fresh_snapshot, the
 def test_demo_edges_are_all_modeled():
     figure = plot_graph(build_dependency_graph(DEMO_SNAPSHOT), 'WETH Feed')
     edges = [trace for trace in figure.data if trace.meta]
-    assert edges and all(trace.line.dash == 'dash' for trace in edges)
+    assert edges and all(trace.line.dash == MODELED_EDGE_DASH for trace in edges)
     assert all(not trace.meta['verified'] for trace in edges)
 
 
@@ -152,7 +152,7 @@ def test_primary_hierarchy_descends_to_feeds_and_shared_infrastructure():
             > LAYOUT['Ethereum'][1])
     assert LAYOUT['WETH Feed'][1] == LAYOUT['USDC Feed'][1]
     figure = plot_graph(build_dependency_graph(DEMO_SNAPSHOT), 'WETH Feed')
-    assert any('Ethereum<br>Shared infrastructure' == annotation.text
+    assert any('Ethereum<br>Infrastructure' == annotation.text
                for annotation in figure.layout.annotations)
     # No rectangular node footprints overlap, including two-line labels.
     for index, first in enumerate(LAYOUT):
