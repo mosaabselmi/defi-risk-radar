@@ -3,6 +3,7 @@ import streamlit as st
 
 from src.wallet_inspection import inspect_wallet_dependency
 from src.wallet_failure_ui import render_failure_impact
+from src.wallet_semantics import node_semantics, inspection_evidence_rows
 
 
 def select_dependency(observation, analysis):
@@ -30,7 +31,12 @@ def render_dependency_inspection(observation, analysis, inspection):
         st.caption(inspection['reason'])
         return
     graph = analysis['graph']
+    semantics = node_semantics(inspection['component'], graph.nodes[inspection['component']])
     st.markdown('**Inspected component:** ' + inspection['label'].replace('\n', ' · '))
+    st.caption('Function: ' + semantics['category'] + ' · Identity: ' + semantics['technical_identity'])
+    st.dataframe(inspection_evidence_rows(graph, inspection), hide_index=True, width='stretch',
+                 column_config={name:None for name in ('Component','Technical identity','Observed position','Relationship evidence')},
+                 alt='Evidence summary for the inspected wallet dependency')
     st.caption(inspection['component_type'] + ' · ' + inspection['component_evidence_status'] +
                ' · Trace relationships: ' + ', '.join(inspection['trace_evidence_levels']))
     address = inspection['contract_address']

@@ -7,6 +7,8 @@ from src.sources import SourceError
 from src.wallet import WalletProviderError, fetch_wallet_position, wallet_quality_issues
 from src.wallet_dependencies import analyze_wallet_incident
 from src.wallet_viz import plot_wallet_graph
+from src.wallet_semantics import overview_graph, node_semantics, category_color
+from src.viz import get_palette
 from src.wallet_decision_ui import render_wallet_decision
 from src.wallet_mitigation_ui import render_wallet_mitigation
 from src.wallet_safety_ui import render_wallet_safety
@@ -48,14 +50,31 @@ def _render_graph(observation, linked, selected, incident, shock, incidents):
     if linked['graph'] is not None:
         graph = linked['graph']
         inspection = select_dependency(observation, linked)
+        view = st.radio('Dependency view', ['Overview', 'Detailed'], horizontal=True,
+                         key='wallet_dependency_view')
+        displayed = overview_graph(graph, inspection.get('component')) if view == 'Overview' else graph
         st.caption('Dependent → dependency · Captured graph for this account; highlights follow the inspected component.')
-        st.plotly_chart(plot_wallet_graph(graph, inspection.get('component'), inspection['highlighted_nodes'],
+        st.plotly_chart(plot_wallet_graph(displayed, inspection.get('component'), inspection['highlighted_nodes'],
                                           theme=st.context.theme.type or 'dark'), width='stretch', theme=None,
                         config={'displayModeBar': False}, key='wallet_dependency_chart')
         verified, modeled, unresolved = st.columns(3)
         verified.caption('Solid · verified pinned read')
-        modeled.caption('Dashed · modeled dependency')
+        modeled.caption('Long dashed · modeled dependency')
         unresolved.caption('Dotted · unresolved connection')
+        theme = st.context.theme.type or 'dark'
+        palette = get_palette(theme)
+        categories = sorted({node_semantics(key,data)['category'] for key,data in displayed.nodes(data=True)})
+        st.html('<div style="display:flex;flex-wrap:wrap;gap:8px;font-size:.85rem;line-height:1.5">' +
+                ''.join(f'<span style="padding:3px 9px;border-radius:5px;background:{category_color(category,theme)};color:{palette["ink"]}">{category}</span>'
+                        for category in categories) + '</div>')
+        st.caption('Colors show functional categories only. Outlines highlight inspection paths; edge styles show relationship evidence.')
+        if view == 'Overview':
+            st.caption('Overview hides token/query details. Summarized paths are modeled or unresolved, never direct verified links. '
+                       'The inspected component stays visible; Detailed retains every captured component.')
+            with st.expander('Overview projection · exact original paths', expanded=False):
+                st.json([{'dependent':u,'dependency':v,'evidence_status':edge['evidence_level'],
+                          'original_paths':edge['projection_paths'],'constituent_evidence':edge['path_evidence']}
+                         for u,v,edge in displayed.edges(data=True) if edge.get('projected')])
         mappings = graph.graph['oracle_sources']
         verified_count = sum(m['status'] == 'verified' for m in mappings.values())
         st.caption(f'Configured source addresses: {verified_count}/{len(mappings)} verified at this wallet block. '
