@@ -14,7 +14,7 @@ from src.wallet_mitigation_ui import render_wallet_mitigation
 from src.wallet_safety_ui import render_wallet_safety
 from src.wallet_inspection_ui import select_dependency, render_dependency_inspection
 from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
-from src.presentation import metric_cards
+from src.presentation import metric_cards, responsive_row
 
 
 PUBLIC_EXAMPLE = '0x24a416e5c00c7b47a5f8a300984579b53919330b'
@@ -57,7 +57,8 @@ def _render_graph(observation, linked, selected, incident, shock, incidents):
         st.plotly_chart(plot_wallet_graph(displayed, inspection.get('component'), inspection['highlighted_nodes'],
                                           theme=st.context.theme.type or 'dark'), width='stretch', theme=None,
                         config={'displayModeBar': False}, key='wallet_dependency_chart')
-        verified, modeled, unresolved = st.columns(3)
+        legend = responsive_row('wallet_edge_legend', 250)
+        verified, modeled, unresolved = [legend.container() for _ in range(3)]
         verified.caption('Solid · verified pinned read')
         modeled.caption('Long dashed · modeled dependency')
         unresolved.caption('Dotted · unresolved connection')
@@ -68,20 +69,20 @@ def _render_graph(observation, linked, selected, incident, shock, incidents):
                 ''.join(f'<span style="padding:3px 9px;border-radius:5px;background:{category_color(category,theme)};color:{palette["ink"]}">{category}</span>'
                         for category in categories) + '</div>')
         st.caption('Colors show functional categories only. Outlines highlight inspection paths; edge styles show relationship evidence.')
-        if view == 'Overview':
-            st.caption('Overview hides token/query details. Summarized paths are modeled or unresolved, never direct verified links. '
-                       'The inspected component stays visible; Detailed retains every captured component.')
-            with st.expander('Overview projection · exact original paths', expanded=False):
-                st.json([{'dependent':u,'dependency':v,'evidence_status':edge['evidence_level'],
-                          'original_paths':edge['projection_paths'],'constituent_evidence':edge['path_evidence']}
-                         for u,v,edge in displayed.edges(data=True) if edge.get('projected')])
         mappings = graph.graph['oracle_sources']
         verified_count = sum(m['status'] == 'verified' for m in mappings.values())
         st.caption(f'Configured source addresses: {verified_count}/{len(mappings)} verified at this wallet block. '
-                   'Supplementary mapping failures do not erase complete account evidence. Feed health/freshness is not verified.')
-        st.caption('Highlighted nodes: inspected component and potentially affected paths; not proof of a protocol-wide outage.')
-        st.caption('Source contracts are shown only when matching getSourceOfAsset evidence exists in this observation. '
-                   'A configured address does not establish source health or underlying aggregator relationships.')
+                   'Feed health/freshness is not verified.')
+        with st.expander('Graph scope and projection evidence', expanded=False):
+            st.caption('Highlighted nodes: inspected component and potentially affected paths; not proof of a protocol-wide outage.')
+            st.caption('Source contracts require matching getSourceOfAsset evidence. A configured address does not establish '
+                       'source health or underlying aggregator relationships. Supplementary mapping failures do not erase complete account evidence.')
+            if view == 'Overview':
+                st.caption('Overview hides token/query details. Summarized paths are modeled or unresolved, never direct verified links. '
+                           'The inspected component stays visible; Detailed retains every captured component.')
+                st.json([{'dependent':u,'dependency':v,'evidence_status':edge['evidence_level'],
+                          'original_paths':edge['projection_paths'],'constituent_evidence':edge['path_evidence']}
+                         for u,v,edge in displayed.edges(data=True) if edge.get('projected')])
         render_dependency_inspection(observation, linked, inspection)
 
 
@@ -142,9 +143,11 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
     linked = analyze_wallet_incident(observation, selected, incident, shock / 100, historical_replay=replay)
     result = linked['financial']
     with overview:
-        if replay:
+        if replay and not force_historical_replay:
             st.warning('HISTORICAL / NOT LIVE · Retrospective analysis only; no current STAY/EXIT decision.')
             st.caption(f"Original block: {observation['block']['number']:,} · Observed: {observation['retrieved_at']}")
+        elif replay:
+            st.caption('HISTORICAL / NOT LIVE · Hypothetical stress on the captured block, not a current market signal.')
         if result is None:
             st.warning(linked['status'])
             st.caption(linked['reason'])
@@ -162,17 +165,20 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
             c.metric('Change in marked equity', f"${result['equity_change_usd']:,.2f}", border=True)
             d.metric('All wallet debt', f"${after['debt_usd']:,.2f}", border=True)
             if after['liquidation_eligible']:
-                st.error('HIGH MODELED RISK · Definite liquidation eligibility across reconciled HF conventions (HF < 1). This is not guaranteed liquidation or a realized loss.')
+                st.error('HIGH MODELED RISK · Scenario borrowing power is below debt (HF < 1 across reconciled conventions). '
+                         'Liquidation is eligible, not guaranteed; the equity change is not a realized loss.')
             elif after['liquidation_possible']:
                 st.warning('POSSIBLE LIQUIDATION ELIGIBILITY · Reconciled HF conventions straddle 1. The conservative HF is below 1; eligibility is uncertain.')
             elif after['health_factor'] is None:
                 st.info('No debt at this block: liquidation eligibility is not modeled as a finite HF.')
             else:
                 st.info('All reconciled stressed HFs ≥ 1: no modeled liquidation eligibility in this scenario.')
-            st.caption('Stress-model coverage: COMPLETE · Baseline reconciled against Aave. Only enabled collateral contributes to HF. Equity change is a stress mark, not realized damage. '
-                       'Execution decision: UNAVAILABLE · ' + result['status'] + '. Wallet execution feasibility remains unverified.')
+            st.caption('Verified baseline · Hypothetical shock · Equity change is not realized damage. Execution feasibility remains unverified.')
             if after['health_factor'] is not None:
-                st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
+                with st.expander('Health-factor coverage and rounding', expanded=False):
+                    st.caption('Stress-model coverage: COMPLETE · Baseline reconciled against Aave. Only enabled collateral contributes to HF. '
+                               'Execution decision: UNAVAILABLE · ' + result['status'])
+                    st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
     _render_graph(observation, linked, selected, incident, shock, incidents)
     render_wallet_safety(observation, linked)
     if result is None or not result['coverage']:

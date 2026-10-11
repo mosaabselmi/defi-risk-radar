@@ -5,6 +5,7 @@ from html import escape
 import plotly.graph_objects as go
 from src.viz import get_palette, MODELED_EDGE_DASH
 from src.wallet_semantics import node_semantics, category_color
+from src.wallet_routes import orthogonal_routes
 
 
 def wallet_layout(graph):
@@ -13,22 +14,22 @@ def wallet_layout(graph):
     assets = graph.graph['asset_order']
     columns = min(3, max(1, len(assets)))
     groups = max(1, math.ceil(len(assets) / columns))
-    positions = {'position': (0, 2), 'pool': (0, 1),
-                 'oracle': (0, -groups*6 + .8), 'ethereum': (0, -groups*6 - .5)}
-    sizes = {key: (4, .8) for key in positions}
+    positions = {'position': (0, 3.2), 'pool': (0, 1.8),
+                 'oracle': (0, -groups*8 + .7), 'ethereum': (0, -groups*8 - .7)}
+    sizes = {key: (5.2, .8) for key in positions}
     for key, data in graph.nodes(data=True):
         if not data.get('asset'):
             continue
         i = assets.index(data['asset'])
-        x, y = (i % columns - (columns-1)/2)*8, -(i//columns)*6 - (4-data['layer'])
+        x, y = (i % columns - (columns-1)/2)*8.3, -(i//columns)*8 - (4-data['layer'])*1.5
         if key.startswith('a_token:'):
-            x -= 2.5
+            x -= 2.75
         elif key.startswith('debt_token:'):
-            x += 2.5
+            x += 2.75
         positions[key] = (x, y)
-        sizes[key] = (2.1, .7) if data['layer'] == 2 else (4, .8)
-        if key.startswith('exposure:') and ' / ' in data['label']:
-            sizes[key] = (4,1.05)
+        sizes[key] = (2.6, .9) if data['layer'] == 2 else (5.2, .8)
+        if key.startswith('exposure:') and (' / ' in data['label'] or 'disabled collateral' in data['label']):
+            sizes[key] = (5.2,1.05)
     return positions, sizes
 
 
@@ -37,9 +38,9 @@ def overview_layout(graph):
     assets = graph.graph['asset_order']
     columns = min(3, max(1, len(assets)))
     groups = max(1, math.ceil(len(assets)/columns))
-    positions = {'position': (0,3.3), 'pool': (0,2),
-                 'oracle': (0,-groups*5+.2), 'ethereum': (0,-groups*5-1)}
-    sizes = {key:(4,1) for key in positions if key in graph}
+    positions = {'position': (0,3.8), 'pool': (0,2.15),
+                 'oracle': (0,-groups*6+.2), 'ethereum': (0,-groups*6-1.2)}
+    sizes = {key:(5.2,1) for key in positions if key in graph}
     positions = {key:value for key,value in positions.items() if key in graph}
     for key, data in graph.nodes(data=True):
         if key in positions:
@@ -48,16 +49,16 @@ def overview_layout(graph):
         if asset in assets:
             i = assets.index(asset)
             x = (i % columns-(columns-1)/2)*8
-            row = -(i//columns)*5
-            y = row + (0 if key.startswith('exposure:') else -1.4 if key.startswith('reserve:')
-                       else -3.6 if key.startswith('source:') else -2.5)
+            row = -(i//columns)*6
+            y = row + (0 if key.startswith('exposure:') else -1.65 if key.startswith('reserve:')
+                       else -4.2 if key.startswith('source:') else -2.9)
             positions[key] = (x,y)
-            sizes[key] = (4,1.25 if key.startswith('exposure:') else .95)
+            sizes[key] = (5.2,1.25 if key.startswith('exposure:') else .95)
         else:
             # Existing unknown/boundary components remain inspectable; never
             # infer an asset column or silently omit their identity.
             positions[key] = (12,-len(positions))
-            sizes[key] = (4,.85)
+            sizes[key] = (5.2,.85)
     return positions, sizes
 
 
@@ -99,37 +100,12 @@ def _compact_route(route):
 def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
     palette = get_palette(theme)
     positions, sizes = wallet_layout(graph)
-    extent = max(abs(x)+sizes[key][0]/2 for key,(x,y) in positions.items()) + 1
+    routes = orthogonal_routes(graph, positions, sizes)
+    extent = max(max(abs(point[0]) for point in route) for route in routes.values()) if routes else 3
+    extent = max(extent, max(abs(x)+sizes[key][0]/2 for key,(x,y) in positions.items()))
     fig = go.Figure()
     for u, v, evidence in graph.edges(data=True):
-        a, b = positions[u], positions[v]
-        # Long links use perimeter lanes; adjacent layers meet box faces.
-        if u == 'position' and v != 'pool':
-            lane = -extent
-            approach = b[1]+sizes[v][1]/2+.15
-            route = [_boundary(a,sizes[u],(lane,a[1])), (lane,a[1]), (lane,approach),
-                     (b[0],approach), (b[0],b[1]+sizes[v][1]/2)]
-        elif v == 'oracle' or v.startswith('source:shared:') or (evidence.get('projected') and v.startswith('source:')):
-            start = (a[0],a[1]-sizes[u][1]/2)
-            approach = b[1]+sizes[v][1]/2+.15
-            route = [start,(start[0],start[1]-.12),(extent,start[1]-.12),
-                     (extent,approach),(b[0],approach),(b[0],b[1]+sizes[v][1]/2)]
-        elif v == 'ethereum':
-            lane = -extent
-            route = [_boundary(a,sizes[u],(lane,a[1])), (lane,a[1]), (lane,b[1]), _boundary(b,sizes[v],(lane,b[1]))]
-        elif u.startswith('reserve:') and v.startswith('valuation:'):
-            lane = a[0]+3.7
-            route = [_boundary(a,sizes[u],(lane,a[1])),(lane,a[1]),(lane,b[1]),_boundary(b,sizes[v],(lane,b[1]))]
-        elif u == 'pool' and v.startswith('reserve:'):
-            lane = b[0]-3.7
-            route = [_boundary(a,sizes[u],(lane,a[1])), (lane,a[1]), (lane,b[1]), _boundary(b,sizes[v],(lane,b[1]))]
-        else:
-            # Sideways-then-vertical routing avoids rounded corners and label crossings.
-            start = (a[0],a[1]-sizes[u][1]/2)
-            end = (b[0],b[1]+sizes[v][1]/2)
-            middle = (start[1]+end[1])/2
-            route = [start,(start[0],middle),(end[0],middle),end]
-        route = _compact_route(route)
+        route = _compact_route(routes[u,v])
         level = evidence['evidence_level']
         color = palette['accent'] if level == 'verified' else palette['muted']
         dash = {'verified':'solid','modeled':MODELED_EDGE_DASH,'unknown':'dot'}[level]
@@ -174,18 +150,21 @@ def plot_wallet_graph(graph, focus=None, highlighted=(), theme='dark'):
         label = label.replace('underlying token', 'ERC-20').replace('debt token', 'debt')
         label = label.replace('Imported position', 'Imported<br>position').replace('Aave Price Oracle', 'Aave Price<br>Oracle')
         label = label.replace('enabled collateral', 'Collateral').replace('variable debt', 'Debt').replace('Aave valuation', 'Oracle value')
-        label = label.replace('supply · disabled collateral', 'Disabled supply')
+        label = label.replace('supply · disabled collateral', 'Disabled<br>supply')
+        if key.startswith('reserve:'):
+            label = label.replace(' reserve', '<br>Reserve')
+        label = label.replace('source unknown', 'Unresolved').replace('no direct source', 'Direct: none')
         if data.get('contract_address') and key.startswith('source:'):
             address = data['contract_address']
-            label = label.replace(address[:8] + '…' + address[-4:], address[:6] + '…' + address[-4:])
+            label = label.replace(address[:8] + '…' + address[-4:], address[:4] + '…' + address[-4:])
             if not key.startswith('source:shared:'):
                 label = label.replace('<br>', ' source<br>', 1)
         fig.add_annotation(x=x,y=y,text=label,showarrow=False,font=dict(color=palette['ink'],size=14),name=key)
     groups = max(1,math.ceil(len(graph.graph['asset_order'])/3))
     overview = graph.graph.get('view') == 'Overview'
-    fig.update_layout(height=(500+max(0,groups-1)*260 if overview else 560+max(0,groups-1)*320),margin=dict(l=5,r=5,t=5,b=5),showlegend=False,
+    fig.update_layout(height=(580+max(0,groups-1)*300 if overview else 720+max(0,groups-1)*380),margin=dict(l=0,r=0,t=5,b=5),showlegend=False,
         paper_bgcolor=palette['surface'],plot_bgcolor=palette['surface'],dragmode=False,
         xaxis=dict(visible=False,fixedrange=True,range=[-extent-.3,extent+.3]),
-        yaxis=dict(visible=False,fixedrange=True,range=[min(y-sizes[key][1]/2 for key,(x,y) in positions.items())-.2,4 if overview else 2.6]),
+        yaxis=dict(visible=False,fixedrange=True,range=[min(y-sizes[key][1]/2 for key,(x,y) in positions.items())-.3,4.6 if overview else 3.8]),
         hoverlabel=dict(bgcolor=palette['surface'],bordercolor=palette['border'],font=dict(color=palette['ink'],size=14)))
     return fig
