@@ -9,6 +9,7 @@ from src.wallet_dependencies import analyze_wallet_incident
 from src.wallet_viz import plot_wallet_graph
 from src.wallet_decision_ui import render_wallet_decision
 from src.wallet_mitigation_ui import render_wallet_mitigation
+from src.wallet_inspection_ui import select_dependency, render_dependency_inspection
 from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
 
 
@@ -40,12 +41,13 @@ def _load_historical_example():
         st.session_state.wallet_error_kind = 'Historical example integrity/evidence validation failure'
 
 
-def _render_graph(linked, selected, incident, shock, incidents):
+def _render_graph(observation, linked, selected, incident, shock, incidents):
     st.subheader('Dependency intelligence')
     if linked['graph'] is not None:
         graph = linked['graph']
-        st.caption('Dependent → dependency · This graph belongs to the imported account and selected incident.')
-        st.plotly_chart(plot_wallet_graph(graph, linked.get('focus'), linked.get('affected', ()),
+        inspection = select_dependency(observation, linked)
+        st.caption('Dependent → dependency · Captured graph for this account; highlights follow the inspected component.')
+        st.plotly_chart(plot_wallet_graph(graph, inspection.get('component'), inspection['highlighted_nodes'],
                                           theme=st.context.theme.type or 'dark'), width='stretch', theme=None,
                         config={'displayModeBar': False}, key='wallet_dependency_chart')
         verified, modeled, unresolved = st.columns(3)
@@ -56,9 +58,10 @@ def _render_graph(linked, selected, incident, shock, incidents):
         verified_count = sum(m['status'] == 'verified' for m in mappings.values())
         st.caption(f'Configured source addresses: {verified_count}/{len(mappings)} verified at this wallet block. '
                    'Supplementary mapping failures do not erase complete account evidence. Feed health/freshness is not verified.')
-        st.caption('Highlighted node: selected exposure or potentially affected dependency path; not proof of a protocol-wide outage.')
+        st.caption('Highlighted nodes: inspected component and potentially affected paths; not proof of a protocol-wide outage.')
         st.caption('Source contracts are shown only when matching getSourceOfAsset evidence exists in this observation. '
                    'A configured address does not establish source health or underlying aggregator relationships.')
+        render_dependency_inspection(observation, linked, inspection)
 
 
 def _render_relationship_evidence(linked, selected, incident, shock, incidents):
@@ -149,7 +152,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
                        'Execution decision: UNAVAILABLE · ' + result['status'] + '. Wallet execution feasibility remains unverified.')
             if after['health_factor'] is not None:
                 st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
-    _render_graph(linked, selected, incident, shock, incidents)
+    _render_graph(observation, linked, selected, incident, shock, incidents)
     if result is None or not result['coverage']:
         _render_relationship_evidence(linked, selected, incident, shock, incidents)
         return
