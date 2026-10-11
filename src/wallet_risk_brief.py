@@ -96,13 +96,16 @@ def discover_scenarios(observation, graph, *, historical_replay=False, now=None)
                 why='This observed asset is enabled collateral for the imported account.')
         elif int(asset['variable_debt_raw']) or int(asset['supplied_raw']):
             stable = symbol.upper() in STABLECOIN_SYMBOLS
+            covered = (int(asset['variable_debt_raw']) > 0 and
+                       analyze_wallet_stress(observation, address, 0, historical_replay=historical_replay, now=now)['coverage'])
             add('asset_price', symbol + (' stablecoin price deviation (depeg)' if stable else ' asset-price deviation'),
                 component, rows,
-                'The USD value of this ' + ('liability' if int(asset['variable_debt_raw']) else 'supply') +
-                ' could change in either direction.',
-                'The current real-wallet stress control supports enabled collateral shocks only; no dollar loss is calculated. '
+                ('The USD value of this liability could change in either direction; debt appreciation raises the '
+                 'liability and depreciation lowers it.' if int(asset['variable_debt_raw']) else
+                 'The USD value of this collateral-disabled supply could change in either direction.'),
+                'A price deviation is hypothetical, not an observed depeg or oracle malfunction. Execution and liquidation outcomes are unverified. '
                 + ('Stablecoin classification follows token metadata; peg behavior is not verified.' if stable else ''),
-                category='UNSUPPORTED / UNKNOWN', why='This token is an observed ' +
+                category='SUPPORTED SCENARIO' if covered else 'UNSUPPORTED / UNKNOWN', why='This token is an observed ' +
                 ('outstanding debt obligation.' if int(asset['variable_debt_raw']) else 'supplied asset.'))
 
     # A single verified source contract may serve several assets. One node means
@@ -142,16 +145,17 @@ def discover_scenarios(observation, graph, *, historical_replay=False, now=None)
             'Reachability does not establish congestion, duration, a market shock or a USD loss.',
             why='Observed contracts execute on Ethereum; this infrastructure edge is modeled.')
     scenarios.sort(key=lambda item: (item['quantification'] != 'SUPPORTED SCENARIO',
+                                     item['kind'] != 'collateral_price',
                                      -len(item['exposures']), item['kind'], item['component']))
     return scenarios
 
 
 def causal_trace(scenario, financial=None):
     """A mechanism-specific explanation; only an existing covered engine adds numbers."""
-    if scenario['kind'] != 'collateral_price' or scenario['quantification'] != 'SUPPORTED SCENARIO':
+    if scenario['kind'] not in ('collateral_price', 'asset_price') or scenario['quantification'] != 'SUPPORTED SCENARIO':
         return [scenario['name'], scenario['consequence'], 'Economic effect: UNQUANTIFIED.']
     if not financial or not financial.get('coverage') or financial.get('selected_reserve') != scenario['exposures'][0]['address']:
-        return [scenario['name'], 'Select this enabled collateral explicitly to calculate its hypothetical impact.']
+        return [scenario['name'], 'Select this asset explicitly to calculate its hypothetical impact.']
     before, after = financial['baseline'], financial['stressed']
     hf = 'N/A (no debt)' if after['health_factor'] is None else f"{after['health_factor']:.4f}"
     base_hf = 'N/A (no debt)' if before['health_factor'] is None else f"{before['health_factor']:.4f}"
@@ -160,9 +164,23 @@ def causal_trace(scenario, financial=None):
                    if after['liquidation_possible'] else 'no modeled eligibility')
     reserve = scenario['exposures'][0]['address']
     pool = scenario['pool_address']
+    pool_label = 'Aave Pool (' + pool[:10] + '…)' if pool else 'Account'
+    if scenario['kind'] == 'asset_price':
+        before_row = next(row for row in before['assets'] if row['reserve_address'] == reserve)
+        after_row = next(row for row in after['assets'] if row['reserve_address'] == reserve)
+        supply_note = ('; its supplied balance also reprices' if before_row['supplied_units'] else '')
+        outcome = ('favorable marked outcome; no modeled downside' if financial['equity_change_usd'] > 0
+                   else 'adverse marked outcome' if financial['equity_change_usd'] < 0 else 'unchanged marked equity')
+        return [scenario['exposures'][0]['asset'] + f" hypothetical market-price change {financial['shock']:+.0%}",
+                scenario['exposures'][0]['asset'] + ' observed debt (' + reserve[:10] +
+                f"…) USD value: ${before_row['debt_usd']:,.2f} → ${after_row['debt_usd']:,.2f}" + supply_note,
+                f"{pool_label} total debt: ${before['debt_usd']:,.2f} → ${after['debt_usd']:,.2f}",
+                'Account HF: ' + base_hf + ' → ' + hf,
+                'HF = 1 boundary: ' + eligibility,
+                f"Marked equity change: ${financial['equity_change_usd']:,.2f} ({outcome}); conditional response needs assumed probability and costs."]
     return [scenario['exposures'][0]['asset'] + f" selected market-price change {financial['shock']:+.0%}",
             scenario['exposures'][0]['asset'] + ' collateral (' + reserve[:10] + '…) market value ' + direction,
-            'Aave Pool (' + pool[:10] + '…) collateral-adjusted value ' + direction +
+            pool_label + ' collateral-adjusted value ' + direction +
             '; same-asset debt, if any, also reprices', 'Account HF: ' + base_hf + ' → ' + hf,
             'HF = 1 boundary: ' + eligibility,
             f"Marked equity change: ${financial['equity_change_usd']:,.2f}; conditional response requires assumed probability and costs."]

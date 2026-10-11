@@ -25,7 +25,7 @@ def clear_investigation():
 def _investigate(observation, scenario):
     st.session_state.wallet_brief_scope = _scope(observation)
     st.session_state.wallet_brief_choice = scenario['id']
-    if scenario['kind'] == 'collateral_price' and scenario['quantification'] == 'SUPPORTED SCENARIO':
+    if scenario['kind'] in ('collateral_price', 'asset_price') and scenario['quantification'] == 'SUPPORTED SCENARIO':
         st.session_state.wallet_incident = 'market_price'
         st.session_state.wallet_stress_asset = scenario['exposures'][0]['address']
     elif scenario['kind'] in ('oracle_source', 'aave_oracle'):
@@ -83,13 +83,15 @@ def render_selected(scenario, financial, *, decision=False):
         st.warning('Economic effect: UNQUANTIFIED · No incident loss or executable decision is established.')
         st.caption(scenario['consequence'] + ' ' + scenario['limitation'])
         if decision:
-            st.caption('The conditional STAY/EXIT comparison requires a separately selected, covered collateral market-price shock.')
+            st.caption('The conditional STAY/EXIT comparison requires a separately selected, covered market-price shock.')
         return
     if not decision:
-        if financial and financial.get('coverage') and financial['shock'] >= 0:
+        if scenario['kind'] == 'collateral_price' and financial and financial.get('coverage') and financial['shock'] >= 0:
             st.warning('The suggested decline is selected, but your unchanged shock is zero or positive. '
                        'The figures below describe that selected input, not a price decline.')
-        st.markdown(' → '.join(causal_trace(scenario, financial)))
+        # Keep each causal step readable; escape dollar signs so Streamlit does
+        # not interpret adjacent USD amounts as inline mathematics.
+        st.markdown('  \n'.join('→ ' + step for step in causal_trace(scenario, financial)).replace('$', '\\$'))
         st.caption('Market-price shock only. No oracle failure or realized liquidation is implied. ' + scenario['limitation'])
     else:
         if financial and financial.get('coverage'):

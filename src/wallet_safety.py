@@ -37,6 +37,13 @@ def analyze_wallet_safety(observation, collateral_address, shock, target_hf,
                                           historical_replay=historical_replay)
             if not stress['coverage']:
                 raise ValueError(stress['reason'])
+            # This solver searches for a decline in *collateral* price. Debt
+            # repricing is supported by stress, but has no collateral-distance
+            # interpretation here.
+            selected = next((asset for asset in observation['assets']
+                             if asset['reserve_address'] == collateral_address), None)
+            if not selected or not selected['collateral_enabled'] or int(selected['supplied_raw']) <= 0:
+                raise ValueError('Safety-buffer distance requires nonzero enabled collateral.')
             distance = _distance(observation, collateral_address, stress, historical_replay, now)
             repayment = _repayment(observation, collateral_address, stress['shock'], target,
                                    funding, historical_replay, now)

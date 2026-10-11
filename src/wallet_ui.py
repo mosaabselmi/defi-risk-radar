@@ -120,7 +120,7 @@ def _render_relationship_evidence(linked, selected, incident, shock, incidents):
 
 def render_wallet_stress(observation, *, force_historical_replay=False, section=None):
     overview = st.container(key='wallet_overview') if section in (None, 'Overview') else None
-    incidents = {'market_price': 'Collateral market-price shock', 'oracle_source_outage': 'Asset oracle-source outage · unquantified',
+    incidents = {'market_price': 'Asset market-price shock · collateral or debt', 'oracle_source_outage': 'Asset oracle-source outage · unquantified',
                  'oracle_outage': 'Shared Aave oracle outage · unquantified', 'rpc_outage': 'RPC retrieval outage · unquantified'}
     if section in (None, 'Scenarios'):
         with st.container(border=True):
@@ -128,18 +128,22 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
             incident_column, asset_column = st.columns(2, gap='medium')
             incident = incident_column.selectbox('Real-wallet incident', list(incidents), format_func=incidents.get, key='wallet_incident', persist_state='session', on_change=clear_investigation)
             choices = {a['reserve_address']: a for a in observation['assets']
-                       if incident != 'market_price' or a['collateral_enabled'] and int(a['supplied_raw']) > 0}
+                       if incident != 'market_price' or (a['collateral_enabled'] and int(a['supplied_raw']) > 0) or int(a['variable_debt_raw']) > 0}
             if not choices:
-                st.info('MONITOR / INSUFFICIENT MODEL COVERAGE · No enabled nonzero collateral to stress.')
+                st.info('MONITOR / INSUFFICIENT MODEL COVERAGE · No enabled collateral or outstanding debt to stress.')
                 choices = {a['reserve_address']: a for a in observation['assets']}
                 if not choices:
                     return
             if st.session_state.get('wallet_stress_asset') not in choices:
                 st.session_state.pop('wallet_stress_asset', None)
-            selected = asset_column.selectbox('Enabled wallet collateral to shock' if incident == 'market_price' else 'Wallet exposure to inspect', list(choices),
-                format_func=lambda address: choices[address]['symbol'] + ' · ' + address[:8] + '…' + address[-4:], key='wallet_stress_asset', persist_state='session', on_change=clear_investigation)
+            selected = asset_column.selectbox('Observed collateral or debt asset to shock' if incident == 'market_price' else 'Wallet exposure to inspect', list(choices),
+                format_func=lambda address: choices[address]['symbol'] + ' · ' +
+                    ('collateral + debt' if choices[address]['collateral_enabled'] and int(choices[address]['supplied_raw']) and int(choices[address]['variable_debt_raw'])
+                     else 'collateral' if choices[address]['collateral_enabled'] and int(choices[address]['supplied_raw'])
+                     else 'debt' if int(choices[address]['variable_debt_raw']) else 'supply') +
+                    ' · ' + address[:8] + '…' + address[-4:], key='wallet_stress_asset', persist_state='session', on_change=clear_investigation)
             shock_column, replay_column = st.columns([2,1], vertical_alignment='center')
-            shock = shock_column.slider('Wallet collateral market-price shock (%)', -95, 100, -30, key='wallet_stress_shock', disabled=incident != 'market_price', persist_state='session', on_change=clear_investigation)
+            shock = shock_column.slider('Selected asset market-price change (%)', -95, 100, -30, key='wallet_stress_shock', disabled=incident != 'market_price', persist_state='session', on_change=clear_investigation)
             if force_historical_replay:
                 st.session_state.wallet_stress_replay = True
             replay = replay_column.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay',
@@ -150,7 +154,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
         if incident not in incidents:
             incident = 'market_price'
         choices = {a['reserve_address']:a for a in observation['assets']
-                   if incident != 'market_price' or a['collateral_enabled'] and int(a['supplied_raw']) > 0}
+                   if incident != 'market_price' or (a['collateral_enabled'] and int(a['supplied_raw']) > 0) or int(a['variable_debt_raw']) > 0}
         if not choices:
             choices = {a['reserve_address']:a for a in observation['assets']}
         if not choices:
@@ -229,6 +233,10 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
             a, b = metric_cards(2, key='wallet_scenario_metrics')
             a.metric('Stressed HF', 'N/A · no debt' if after['health_factor'] is None else f"{after['health_factor']:.4f}", border=False)
             b.metric('Change in marked equity', f"${result['equity_change_usd']:,.2f}", border=False)
+            st.caption((f"Total debt: ${result['baseline']['debt_usd']:,.2f} → ${after['debt_usd']:,.2f}. "
+                        'All occurrences of the selected asset reprice; other balances and prices remain fixed.').replace('$', '\\$'))
+            if result['equity_change_usd'] > 0:
+                st.info('Favorable marked equity change for this borrower · no modeled market-loss downside or automatic EXIT signal.')
             if after['liquidation_eligible']:
                 st.error('HIGH MODELED RISK · Definite liquidation eligibility under this scenario, not actual liquidation or realized loss.')
             elif after['liquidation_possible']:
@@ -241,8 +249,13 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
                 render_failure_impact(observation, linked, inspection, on_apply=_apply_collateral)
     if section in (None, 'Dependencies'):
         _render_graph(observation, linked, selected, incident, shock, incidents, include_failure=section is None)
-    if section in (None, 'Scenarios') and not brief_unquantified:
+    selected_asset = choices[selected]
+    selected_collateral = bool(selected_asset['collateral_enabled'] and int(selected_asset['supplied_raw']))
+    if section in (None, 'Scenarios') and not brief_unquantified and selected_collateral:
         render_wallet_safety(observation, linked)
+    elif section == 'Scenarios' and incident == 'market_price' and not selected_collateral:
+        st.caption('Collateral-price liquidation distance is not defined for this debt-only selection. '
+                   'The stressed health factor and liquidation eligibility above still include every observed asset.')
     st.session_state.wallet_analysis_result = linked
     if result is None or not result['coverage']:
         if section == 'Decision':
@@ -259,7 +272,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
             render_wallet_decision(linked, show_historical_banner=section is None,
                                    investigation_name=investigation['name'] if investigation else None)
             render_wallet_mitigation(observation, linked)
-            if section == 'Decision':
+            if section == 'Decision' and selected_collateral:
                 render_wallet_safety(observation, linked)
     if section in (None, 'Evidence'):
         before, after = result['baseline'], result['stressed']

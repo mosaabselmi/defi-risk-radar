@@ -12,7 +12,7 @@ SECTIONS = ('Overview', 'Dependencies', 'Scenarios', 'Decision', 'Evidence')
 SECTION_PURPOSE = {
     'Overview': 'Your observed position, its selected stress and the principal risk.',
     'Dependencies': 'Inspect what this position relies on and the evidence behind each relationship.',
-    'Scenarios': 'Explore a failure mechanism or explicitly simulate a collateral price shock.',
+    'Scenarios': 'Explore a failure mechanism or explicitly simulate a collateral or debt asset-price shock.',
     'Decision': 'Compare conditional economics and hypothetical repayment. Execution is not verified.',
     'Evidence': 'Review the captured block, source contracts, calculations and model limitations.',
 }

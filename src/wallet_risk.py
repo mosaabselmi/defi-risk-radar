@@ -251,8 +251,8 @@ def _analyze(observation, selected, shock, now, historical_replay):
         assets.append({'address': address, 'symbol': a['symbol'], 'decimals': decimals,
                        'supplied': supplied, 'borrowed': borrowed, 'enabled': enabled,
                        'price': price, 'threshold': configuration[2]})
-    if not any(a['address'] == selected and a['enabled'] and a['supplied'] for a in assets):
-        raise CoverageError('Select a nonzero, enabled collateral reserve for the market shock.')
+    if not any(a['address'] == selected and (a['enabled'] and a['supplied'] or a['borrowed']) for a in assets):
+        raise CoverageError('Select a nonzero enabled collateral or borrowed reserve for the market shock.')
     baseline = _valuation(assets)
     # Same strict base-unit tolerance as importer; no USD-sized or percentage allowance.
     rounding = Decimal(2 * len(assets))
