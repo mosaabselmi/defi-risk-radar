@@ -9,6 +9,7 @@ from src.wallet_dependencies import analyze_wallet_incident
 from src.wallet_viz import plot_wallet_graph
 from src.wallet_decision_ui import render_wallet_decision
 from src.wallet_mitigation_ui import render_wallet_mitigation
+from src.wallet_safety_ui import render_wallet_safety
 from src.wallet_inspection_ui import select_dependency, render_dependency_inspection
 from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
 from src.presentation import metric_cards
@@ -154,6 +155,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False):
             if after['health_factor'] is not None:
                 st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
     _render_graph(observation, linked, selected, incident, shock, incidents)
+    render_wallet_safety(observation, linked)
     if result is None or not result['coverage']:
         _render_relationship_evidence(linked, selected, incident, shock, incidents)
         return
