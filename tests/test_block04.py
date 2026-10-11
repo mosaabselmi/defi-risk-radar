@@ -21,10 +21,13 @@ def dashboard(tmp_path, snapshot=None, mode='SYNTHETIC PLAYGROUND'):
     code = code.replace("SAVED = BASE_DIR / 'data' / 'latest_source_snapshot.json'",
                         f'SAVED = Path({str(saved)!r})')
     app = AppTest.from_string(code)
+    app.session_state['website_page'] = 'Analyze'
     app.session_state['application_mode'] = mode
     if snapshot is not None:
         app.session_state['snapshot'] = copy.deepcopy(snapshot)
-    return app.run(timeout=20), saved
+    app.run(timeout=20)
+    app.switch_page(str(Path(__file__).resolve().parents[1] / 'app_pages/analyze.py'))
+    return app, saved
 
 
 def click(app, label):

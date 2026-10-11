@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """Presentation and mode-isolation regressions; no live calls or source writes."""
 import copy
 from pathlib import Path
@@ -17,9 +19,9 @@ def test_default_real_mode_has_no_synthetic_controls_or_automatic_fetch(monkeypa
         raise AssertionError('Opening the UI must not fetch live data')
     monkeypatch.setattr('src.wallet_ui.fetch_wallet_position', forbidden)
     monkeypatch.setattr('src.sources.fetch_market_snapshot', forbidden)
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     assert not app.exception
-    assert app.radio(key='application_mode').value == 'REAL PORTFOLIO ANALYSIS'
+    assert control(app, 'application_mode').value == 'REAL PORTFOLIO ANALYSIS'
     assert any(button.label == 'Use public example' for button in app.button)
     assert not any(field.label == 'WETH collateral · units' for field in app.number_input)
     assert not any(button.label == '↻  Fetch public data' for button in app.button)
@@ -30,7 +32,7 @@ def test_example_prefills_address_without_inventing_observation(monkeypatch):
     def forbidden(*args,**kwargs):
         raise AssertionError('Prefilling an address must not fetch')
     monkeypatch.setattr('src.wallet_ui.fetch_wallet_position', forbidden)
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     next(button for button in app.button if button.label == 'Use public example').click().run(timeout=20)
     assert not app.exception
     assert app.text_input(key='wallet_address_input').value == '0x24a416e5c00c7b47a5f8a300984579b53919330b'
@@ -44,7 +46,7 @@ def test_successful_import_immediately_collapses_controls_and_shows_risk(monkeyp
         calls.append(address)
         return observation
     monkeypatch.setattr('src.wallet_ui.fetch_wallet_position', imported)
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     app.text_input(key='wallet_address_input').set_value(observation['wallet_address'])
     next(button for button in app.button if button.label == 'Inspect Aave wallet').click().run(timeout=20)
     assert not app.exception
@@ -56,7 +58,7 @@ def test_successful_import_immediately_collapses_controls_and_shows_risk(monkeyp
 
 def test_real_summary_precedes_graph_and_evidence_is_collapsed():
     observation = fetch(WalletRPC())
-    app = AppTest.from_file(APP)
+    app = analysis_app(APP)
     app.session_state.wallet_observation = observation
     app.run(timeout=20)
     assert not app.exception
@@ -65,6 +67,8 @@ def test_real_summary_precedes_graph_and_evidence_is_collapsed():
     assert len(overview.metric) == 4
     assert overview.metric[1].value == '0.9683'
     assert any('HIGH MODELED RISK' in error.value for error in overview.error)
+    assert not app.get('plotly_chart')
+    navigate(app, 'Dependencies')
     assert app.get('plotly_chart')
     assert not any(field.label == 'WETH collateral · units' for field in app.number_input)
     assert all(not e.proto.expanded for e in app.expander)
@@ -74,30 +78,32 @@ def test_real_summary_precedes_graph_and_evidence_is_collapsed():
 def test_mode_switch_preserves_wallet_and_separate_synthetic_choices():
     observation = fetch(WalletRPC())
     original = copy.deepcopy(observation)
-    app = AppTest.from_file(APP)
+    app = analysis_app(APP)
     app.session_state.wallet_observation = observation
     app.run(timeout=20)
+    navigate(app, 'Scenarios')
     app.slider(key='wallet_stress_shock').set_value(-20).run(timeout=20)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert not app.exception
     assert not any(field.key == 'wallet_stress_shock' for field in app.slider)
     app.number_input(key='synthetic_collateral').set_value(8.0).run(timeout=20)
-    app.radio(key='application_mode').set_value('REAL PORTFOLIO ANALYSIS').run(timeout=20)
+    control(app, 'application_mode').set_value('REAL PORTFOLIO ANALYSIS').run(timeout=20)
     assert not app.exception
     assert app.slider(key='wallet_stress_shock').value == -20
     assert app.session_state.wallet_observation == original
     assert any(metric.label == 'Change in marked equity' and metric.value == '$-2,000.00' for metric in app.metric)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert app.number_input(key='synthetic_collateral').value == 8.0
 
 
 def test_reorganized_ui_does_not_hide_historical_safeguards():
     from tests.test_wallet_risk import archived_observation
-    app = AppTest.from_file(APP)
+    app = analysis_app(APP)
     app.session_state.wallet_observation = archived_observation()
     app.run(timeout=20)
     assert not app.exception and not app.metric
     assert any('HISTORICAL WALLET OBSERVATION / NOT LIVE' in warning.value for warning in app.warning)
+    navigate(app, 'Scenarios')
     app.checkbox(key='wallet_stress_replay').check().run(timeout=20)
     assert not app.exception and app.metric
     assert any('HISTORICAL / NOT LIVE' in warning.value for warning in app.warning)

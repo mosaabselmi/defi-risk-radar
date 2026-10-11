@@ -1,3 +1,4 @@
+from tests.ui_navigation import analysis_app, navigate
 """Distinct mechanisms over existing inspection paths; no new loss models."""
 import copy
 from decimal import Decimal
@@ -214,8 +215,9 @@ APP = str(Path(__file__).resolve().parents[1] / 'app.py')
 
 @pytest.mark.parametrize('incident', list(INCIDENTS))
 def test_ui_failure_selection_leaves_price_mitigation_and_observation_unchanged(incident):
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
+    navigate(app, 'Scenarios')
     original = copy.deepcopy(app.session_state.wallet_observation)
     inputs = (app.selectbox(key='wallet_incident').value, app.selectbox(key='wallet_stress_asset').value,
               app.slider(key='wallet_stress_shock').value)
@@ -234,8 +236,9 @@ def test_ui_failure_selection_leaves_price_mitigation_and_observation_unchanged(
 
 
 def test_ui_debt_depeg_choice_never_switches_the_enabled_collateral_scenario():
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
+    navigate(app, 'Scenarios')
     app.selectbox(key='wallet_dependency_inspection').set_value('oracle').run(timeout=20)
     app.selectbox(key='wallet_failure_incident').set_value('stablecoin_depeg').run(timeout=20)
     address = app.session_state.wallet_observation['assets'][1]['reserve_address']

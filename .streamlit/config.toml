@@ -1,3 +1,6 @@
+[client]
+toolbarMode = "viewer"
+
 [theme]
 base = "dark"
 primaryColor = "#52687A"
@@ -42,6 +45,7 @@ borderColor = "#465364"
 # Native Settings > Theme keeps the selected appearance across reruns.
 # Root base remains dark for the default/custom appearance.
 [theme.dark]
+primaryColor = "#52687A"
 backgroundColor = "#0D1420"
 secondaryBackgroundColor = "#202734"
 textColor = "#F2F3F1"

@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """Presentation geometry and UI isolation; no financial engine substitutions."""
 import copy
 from pathlib import Path
@@ -90,7 +92,7 @@ def test_shared_source_has_one_identity_and_separate_converging_ports():
 
 
 def test_historical_ui_has_one_primary_warning_and_independent_inspection():
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
+    app = analysis_app(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
     assert not app.exception
     overview = next(c for c in app.get('container') if c.key == 'wallet_overview')
@@ -98,11 +100,13 @@ def test_historical_ui_has_one_primary_warning_and_independent_inspection():
     assert not overview.warning  # Global banner remains above the overview.
     assert any('HISTORICAL / NOT LIVE' in w.value and 'EXAMPLE ACCOUNT' in w.value for w in app.warning)
     before = {m.label:m.value for m in overview.metric}
-    scenario = (app.selectbox(key='wallet_incident').value,app.slider(key='wallet_stress_shock').value)
+    scenario = copy.deepcopy(app.session_state.wallet_analysis_inputs)
+    navigate(app, 'Dependencies')
     app.selectbox(key='wallet_dependency_inspection').set_value('oracle').run(timeout=20)
-    app.radio(key='wallet_dependency_view').set_value('Detailed').run(timeout=20)
+    control(app, 'wallet_dependency_view').set_value('Detailed').run(timeout=20)
     assert not app.exception
+    assert scenario == app.session_state.wallet_analysis_inputs
+    assert any(e.label == 'Graph scope and projection evidence' and not e.proto.expanded for e in app.expander)
+    navigate(app, 'Overview')
     overview = next(c for c in app.get('container') if c.key == 'wallet_overview')
     assert {m.label:m.value for m in overview.metric} == before
-    assert scenario == (app.selectbox(key='wallet_incident').value,app.slider(key='wallet_stress_shock').value)
-    assert any(e.label == 'Graph scope and projection evidence' and not e.proto.expanded for e in app.expander)

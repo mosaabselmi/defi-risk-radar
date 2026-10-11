@@ -13,11 +13,11 @@ def render_wallet_safety(observation, analysis):
         return
     a, b, c = metric_cards(3, key='wallet_safety_metrics')
     target = b.number_input('Target HF · hypothetical', min_value=1.0, max_value=100.0,
-                            value=1.2, step=0.1, key='wallet_safety_target')
+                            value=1.2, step=0.1, key='wallet_safety_target', persist_state='session')
     details = st.expander('Safety Buffer · bounds, debt tokens and assumptions', expanded=False)
     with details:
         funding = st.number_input('Assumed external repayment funding · USD', min_value=0.0,
-                                  value=0.0, key='wallet_safety_funding')
+                                  value=0.0, key='wallet_safety_funding', persist_state='session')
     result = analyze_wallet_safety(observation, financial['selected_reserve'], financial['shock'], target,
                                   funding, historical_replay=financial['historical_replay'])
     if not result['coverage']:
@@ -33,9 +33,9 @@ def render_wallet_safety(observation, analysis):
     rounded_range = high is not None and low != high and format(low*100, '.2f') == format(high*100, '.2f')
     if rounded_range:
         distance_text = f'≈{low*100:.2f}%'
-    a.metric('Baseline decline to HF 1', distance_text, border=True)
+    a.metric('Baseline decline to HF 1', distance_text, border=False)
     modeled = repayment['result']
-    c.metric('Required repayment · USD', f"${modeled['repayment_requirement_usd']:,.2f}", border=True)
+    c.metric('Required repayment · USD', f"${modeled['repayment_requirement_usd']:,.2f}", border=False)
     if result['historical_replay']:
         st.caption('HISTORICAL / NOT LIVE · Retrospective safety arithmetic; no current STAY/EXIT signal.')
     st.caption('Distance uses the selected collateral’s pinned baseline price; repayment uses the selected stressed prices. '

@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """Actual captured replay, tested offline; never rewrite the bundled fixture."""
 import copy
 import hashlib
@@ -184,7 +186,7 @@ def test_even_digest_matching_unsupported_or_contradictory_capture_fails_closed(
 
 
 def _load_app():
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     assert not app.exception and not app.metric
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
     assert not app.exception
@@ -196,19 +198,25 @@ def test_one_click_offline_ui_has_forced_historical_labels_and_real_risk(offline
     assert app.button(key='wallet_load_historical_example').label == BUTTON
     assert len(app.get_by_key('wallet_overview').metric) == 4
     assert app.metric[0].value == '1.1949' and app.metric[1].value == '0.8365'
+    navigate(app, 'Scenarios')
     assert app.checkbox(key='wallet_stress_replay').value
     assert app.checkbox(key='wallet_stress_replay').disabled
     assert any('HISTORICAL / NOT LIVE' in w.value and 'EXAMPLE ACCOUNT' in w.value for w in app.warning)
     assert any('HIGH MODELED RISK' in e.value for e in app.error)
     assert any('26,165,176' in c.value and wallet_replay.EXAMPLE_RETRIEVED_AT in c.value for c in app.caption)
+    navigate(app, 'Evidence')
     assert any('integrity, not independent proof' in c.value for c in app.caption)
+    navigate(app, 'Dependencies')
     assert app.get('plotly_chart')
+    navigate(app, 'Scenarios')
     app.slider(key='wallet_stress_shock').set_value(-10).run(timeout=20)
+    navigate(app, 'Overview')
     assert not app.exception and app.metric[1].value == '1.0754'
 
 
 def test_offline_conditional_economics_remains_non_actionable(offline):
     app = _load_app()
+    navigate(app, 'Decision')
     app.number_input(key='wallet_decision_notional').set_value(100000.0).run(timeout=20)
     assert not app.exception
     assert any('EXECUTION NOT VERIFIED' in w.value for w in app.warning)
@@ -221,11 +229,12 @@ def test_replay_isolated_from_synthetic_and_never_changes_snapshot(offline):
     before = hashlib.sha256(snapshot.read_bytes()).hexdigest()
     app = _load_app()
     captured = copy.deepcopy(app.session_state.wallet_observation)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert not app.exception
     assert not any(b.key == 'wallet_load_historical_example' for b in app.button)
     app.number_input(key='synthetic_collateral').set_value(8.0).run(timeout=20)
-    app.radio(key='application_mode').set_value('REAL PORTFOLIO ANALYSIS').run(timeout=20)
+    control(app, 'application_mode').set_value('REAL PORTFOLIO ANALYSIS').run(timeout=20)
+    navigate(app, 'Scenarios')
     assert not app.exception and app.checkbox(key='wallet_stress_replay').disabled
     assert app.session_state.wallet_observation == captured
     assert hashlib.sha256(snapshot.read_bytes()).hexdigest() == before
@@ -252,6 +261,7 @@ def test_explicit_successful_live_import_leaves_forced_example_mode(offline, mon
     next(b for b in app.button if b.label == 'Inspect Aave wallet').click().run(timeout=20)
     assert not app.exception and len(app.get_by_key('wallet_overview').metric) == 4
     assert app.session_state.wallet_observation_origin is None
+    navigate(app, 'Scenarios')
     assert not app.checkbox(key='wallet_stress_replay').value
     assert not app.checkbox(key='wallet_stress_replay').disabled
     assert not any('VERIFIED EXAMPLE ACCOUNT' in w.value for w in app.warning)

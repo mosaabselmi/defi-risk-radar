@@ -10,9 +10,9 @@ def render_wallet_mitigation(observation, analysis):
         st.caption('Hypothetical external-funded debt repayment only. No collateral withdrawal or asset sale is simulated.')
         funding_column, repayment_column = st.columns(2)
         funding = funding_column.number_input('Assumed external funding · USD', min_value=0.0, value=0.0,
-                                              key='wallet_mitigation_funding')
+                                              key='wallet_mitigation_funding', persist_state='session')
         repayment = repayment_column.slider('Repay this % of EACH debt token', 0, 100, 25,
-                                             key='wallet_mitigation_pct')
+                                             key='wallet_mitigation_pct', persist_state='session')
         stress = analysis.get('financial') or {}
         result = analyze_wallet_mitigation(observation, stress.get('selected_reserve'), stress.get('shock'),
                                           funding, repayment, historical_replay=stress.get('historical_replay', False),
@@ -25,9 +25,9 @@ def render_wallet_mitigation(observation, analysis):
             st.caption('HISTORICAL / NOT LIVE · Retrospective repayment arithmetic; no current action signal.')
         post = result['post_repayment']
         a, b, c = metric_cards(3, key='wallet_repayment_metrics')
-        a.metric('Full debt · USD', f"${result['pinned_full_debt_usd']:,.2f}", border=True)
-        b.metric('Repayment · USD', f"${result['repayment_requirement_usd']:,.2f}", border=True)
-        c.metric('Post-repay HF', 'N/A' if post['health_factor'] is None else f"{post['health_factor']:.4f}", border=True)
+        a.metric('Full debt · USD', f"${result['pinned_full_debt_usd']:,.2f}", border=False)
+        b.metric('Repayment · USD', f"${result['repayment_requirement_usd']:,.2f}", border=False)
+        c.metric('Post-repay HF', 'N/A' if post['health_factor'] is None else f"{post['health_factor']:.4f}", border=False)
         st.caption('Every outstanding debt token: ' + (', '.join(r['asset'] for r in result['debt_obligations']) or 'none') +
                    '. Full debt uses pinned prices; selected repayment uses scenario prices. N/A HF means no modeled debt.')
         st.caption(f"Full debt at scenario prices: ${result['scenario_full_debt_usd']:,.2f} · "

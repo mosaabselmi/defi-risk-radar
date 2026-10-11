@@ -1,3 +1,4 @@
+from tests.ui_navigation import analysis_app, navigate
 """Rendering invariants: topology, evidence, boundaries and theme contrast."""
 import copy
 import json
@@ -130,13 +131,14 @@ def test_native_theme_refresh_preserves_economic_values_and_choice(monkeypatch):
     from streamlit.testing.v1 import AppTest
     mode = SimpleNamespace(type='dark')
     monkeypatch.setattr(type(st.context), 'theme', property(lambda self: mode))
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app = analysis_app(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['website_page'] = 'Analyze'
     app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
     app.run(timeout=20)
     assert not app.exception
     original = [metric.value for metric in app.metric]
     mode.type = 'light'  # Native browser context after choosing Settings > Theme > Light.
-    app.button(key='refresh_theme').click().run(timeout=20)
+    app.run(timeout=20)
     assert not app.exception
     assert [metric.value for metric in app.metric] == original
     assert '#172330' in app.markdown[0].value
@@ -199,7 +201,8 @@ def test_native_page_text_and_metrics_are_not_overridden_by_stale_python_theme(m
     import streamlit as st
     from streamlit.testing.v1 import AppTest
     monkeypatch.setattr(type(st.context), 'theme', property(lambda self: SimpleNamespace(type=theme)))
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app = analysis_app(str(Path(__file__).resolve().parents[1] / 'app.py'))
+    app.session_state['website_page'] = 'Analyze'
     app.session_state['application_mode'] = 'SYNTHETIC PLAYGROUND'
     app.run(timeout=20)
     assert not app.exception
@@ -220,9 +223,9 @@ def test_native_page_text_and_metrics_are_not_overridden_by_stale_python_theme(m
     assert any(caption.startswith('Dashed edge —') for caption in captions)
     assert any(caption.startswith('Highlighted node —') for caption in captions)
     for chart in app.get('plotly_chart'):
-        assert chart.proto.theme == ''  # Explicit Plotly palette cannot be overridden by Streamlit.
+        assert chart.proto.theme == 'streamlit'  # Native frontend theme updates without a refresh control.
         specification = json.loads(chart.proto.spec)
-        assert specification['layout']['paper_bgcolor'] == get_palette(theme)['surface']
+        assert specification['layout']['paper_bgcolor'] == 'rgba(0,0,0,0)'
     assert list(app.table[0].value.columns) == ['Component', 'USD']
     values = dict(zip(app.table[0].value['Component'], app.table[0].value['USD']))
     assert values['Base collateral'] == '$10,000.00'

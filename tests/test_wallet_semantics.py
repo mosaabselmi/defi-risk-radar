@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """Presentation-only categorization and faithful graph reduction tests."""
 import copy
 from pathlib import Path
@@ -222,23 +224,25 @@ def test_historical_overview_keeps_block_timestamp_and_does_not_promote_stress()
 
 
 def test_overview_detailed_and_inspection_leave_incident_and_financial_inputs_unchanged():
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
+    app = analysis_app(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
-    assert not app.exception and app.radio(key='wallet_dependency_view').value=='Overview'
-    original = copy.deepcopy(app.session_state.wallet_observation)
+    navigate(app, 'Scenarios')
     inputs = (app.selectbox(key='wallet_incident').value,app.selectbox(key='wallet_stress_asset').value,
               app.slider(key='wallet_stress_shock').value,app.selectbox(key='wallet_failure_incident').value)
     metrics = {m.label:m.value for m in app.metric}
-    app.radio(key='wallet_dependency_view').set_value('Detailed').run(timeout=20)
+    navigate(app, 'Dependencies')
+    assert not app.exception and control(app, 'wallet_dependency_view').value=='Overview'
+    original = copy.deepcopy(app.session_state.wallet_observation)
+    control(app, 'wallet_dependency_view').set_value('Detailed').run(timeout=20)
     selected = 'oracle'
     app.selectbox(key='wallet_dependency_inspection').set_value(selected).run(timeout=20)
-    app.radio(key='wallet_dependency_view').set_value('Overview').run(timeout=20)
+    control(app, 'wallet_dependency_view').set_value('Overview').run(timeout=20)
     assert not app.exception and app.session_state.wallet_observation==original
-    assert inputs == (app.selectbox(key='wallet_incident').value,app.selectbox(key='wallet_stress_asset').value,
-                      app.slider(key='wallet_stress_shock').value,app.selectbox(key='wallet_failure_incident').value)
-    assert metrics == {m.label:m.value for m in app.metric}
+    assert inputs == tuple(app.session_state[key] for key in ('wallet_incident','wallet_stress_asset','wallet_stress_shock','wallet_failure_incident'))
     rows = next(frame.value for frame in app.dataframe if 'Function' in frame.value.columns)
     assert rows.iloc[0]['Function']=='Oracle' and rows.iloc[0]['Affected exposures']=='WETH, USDT, GHO'
-    assert any('HISTORICAL / NOT LIVE' in c.value for c in app.caption)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    assert any('HISTORICAL / NOT LIVE' in w.value for w in app.warning)
+    navigate(app, 'Scenarios')
+    assert metrics == {m.label:m.value for m in app.metric}
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert not any(r.key=='wallet_dependency_view' for r in app.radio)

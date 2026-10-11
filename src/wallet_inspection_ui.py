@@ -14,8 +14,8 @@ def select_dependency(observation, analysis):
         st.session_state.pop(key, None)
     component = st.selectbox('Inspect a dependency · independent of economic scenario', nodes,
                              index=nodes.index(analysis['focus']) if analysis.get('focus') in nodes else 0,
-                             format_func=lambda n: graph.nodes[n]['label'].replace('\n', ' · '), key=key)
-    st.caption('Graph highlights follow this inspection. Incident, collateral and shock controls above remain unchanged unless you explicitly apply a collateral below.')
+                             format_func=lambda n: graph.nodes[n]['label'].replace('\n', ' · '), key=key, persist_state='session')
+    st.caption('Inspection highlights evidence paths. Your economic scenario stays unchanged; apply a collateral explicitly in Scenarios.')
     return inspect_wallet_dependency(observation, component)
 
 
@@ -25,7 +25,7 @@ def _apply_collateral(address):
     st.session_state.wallet_stress_asset = address
 
 
-def render_dependency_inspection(observation, analysis, inspection):
+def render_dependency_inspection(observation, analysis, inspection, *, include_failure=True):
     if not inspection['available']:
         st.warning(inspection['status'])
         st.caption(inspection['reason'])
@@ -46,7 +46,8 @@ def render_dependency_inspection(observation, analysis, inspection):
     else:
         st.caption('No separate contract address established for this component.')
     st.caption(inspection['reason'])
-    render_failure_impact(observation, analysis, inspection, on_apply=_apply_collateral)
+    if include_failure:
+        render_failure_impact(observation, analysis, inspection, on_apply=_apply_collateral)
     with st.expander('Dependency trace · observed exposure paths', expanded=False):
         st.dataframe([{'Exposure': row['asset'], 'Supplied units': row['supplied_units'],
                    'Enabled collateral units': row['enabled_collateral_units'], 'Outstanding debt units': row['debt_units'],
@@ -70,7 +71,7 @@ def render_dependency_inspection(observation, analysis, inspection):
                        f"Marked equity change: ${financial['equity_change_usd']:,.2f}. " +
                        ('The selected collateral is among these potentially affected exposures. ' if matches else
                         'The selected collateral is outside this inspected dependency scope. ') +
-                       'These scenario results are not attributed to a dependency outage. Repayment modeling below uses the same selected collateral and shock.')
+                       'These scenario results are not attributed to a dependency outage. Repayment modeling in Decision uses the same selected collateral and shock.')
         else:
             st.caption('Current incident economics: UNQUANTIFIED / INSUFFICIENT MODEL COVERAGE. No unsupported outage or missing-evidence loss is inferred.')
     with st.expander('Inspected dependency · full paths and pinned RPC provenance'):

@@ -10,7 +10,7 @@ def render_failure_impact(observation, analysis, inspection, *, on_apply):
     controls = responsive_row('wallet_failure_controls', 340)
     category_column, asset_column = controls.container(), controls.container()
     incident = category_column.selectbox('Hypothetical failure mechanism', list(INCIDENTS),
-                                         format_func=INCIDENTS.get, key='wallet_failure_incident')
+                                         format_func=INCIDENTS.get, key='wallet_failure_incident', persist_state='session')
     choices = {row['reserve_address']: row['asset'] for row in inspection['exposures']}
     target = None
     if incident in ('market_price', 'stablecoin_depeg') and choices:
@@ -20,7 +20,7 @@ def render_failure_impact(observation, analysis, inspection, *, on_apply):
         selected = analysis.get('asset_address')
         target = asset_column.selectbox('Explicit asset-price scenario', list(choices),
             index=list(choices).index(selected) if selected in choices else 0,
-            format_func=lambda a: choices[a] + ' · ' + a[:8] + '…' + a[-4:], key=key)
+            format_func=lambda a: choices[a] + ' · ' + a[:8] + '…' + a[-4:], key=key, persist_state='session')
     else:
         asset_column.caption('Technical reachability identifies potential exposures. The independent market scenario above remains unchanged.')
     result = analyze_dependency_failure(observation, inspection, analysis, incident, target)

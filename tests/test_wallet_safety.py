@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """Deterministic safety search regressions; never network or fixture writes."""
 import copy
 from decimal import Decimal, ROUND_FLOOR, localcontext
@@ -272,8 +274,9 @@ def test_genuine_example_offline_results_and_preserved_debt_obligations(monkeypa
 
 
 def test_real_ui_target_updates_independently_and_remains_historical():
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
+    app = analysis_app(str(Path(__file__).resolve().parents[1]/'app.py')).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
+    navigate(app, 'Scenarios')
     assert not app.exception
     original = copy.deepcopy(app.session_state.wallet_observation)
     selected = app.selectbox(key='wallet_stress_asset').value
@@ -283,5 +286,5 @@ def test_real_ui_target_updates_independently_and_remains_historical():
     assert app.selectbox(key='wallet_stress_asset').value == selected and app.slider(key='wallet_stress_shock').value == shock
     assert any('HISTORICAL / NOT LIVE' in c.value for c in app.caption)
     assert any('MONITOR / EXECUTION NOT VERIFIED' in c.value for c in app.caption)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert not any(n.key=='wallet_safety_target' for n in app.number_input)

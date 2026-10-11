@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """External-funded nominal repayment math; no network, writes or executable advice."""
 import copy
 import hashlib
@@ -265,8 +267,9 @@ def test_compact_ui_funding_hf_and_historical_labels_keep_original_snapshot():
     snapshot = app_path.parent / 'data/latest_source_snapshot.json'
     fixture = app_path.parent / 'data/demo/aave_wallet_v1.json'
     before = [hashlib.sha256(p.read_bytes()).hexdigest() for p in (snapshot, fixture)]
-    app = AppTest.from_file(str(app_path)).run(timeout=20)
+    app = analysis_app(str(app_path)).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
+    navigate(app, 'Decision')
     assert not app.exception
     assert any('ASSUMED FUNDING INSUFFICIENT' in w.value for w in app.warning)
     assert any('HISTORICAL / NOT LIVE' in c.value for c in app.caption)
@@ -279,7 +282,7 @@ def test_compact_ui_funding_hf_and_historical_labels_keep_original_snapshot():
     app.slider(key='wallet_mitigation_pct').set_value(100).run(timeout=20)
     assert any(m.label == 'Post-repay HF' and m.value == 'N/A' for m in app.metric)
     assert any('ASSUMED FUNDING INSUFFICIENT' in w.value for w in app.warning)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert not app.exception and not any(s.key == 'wallet_mitigation_pct' for s in app.slider)
     assert not any(n.key == 'wallet_mitigation_funding' for n in app.number_input)
     assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in (snapshot, fixture)] == before

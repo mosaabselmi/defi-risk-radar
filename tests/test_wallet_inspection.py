@@ -1,3 +1,5 @@
+from tests.ui_navigation import control, go_page
+from tests.ui_navigation import analysis_app, navigate
 """Dependency reachability and explicit incident linkage without financial duplication."""
 import copy
 import hashlib
@@ -210,15 +212,19 @@ APP = str(Path(__file__).resolve().parents[1] / 'app.py')
 
 
 def _historical_app():
-    app = AppTest.from_file(APP).run(timeout=20)
+    app = analysis_app(APP).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
     assert not app.exception
+    navigate(app, 'Scenarios')
     return app
 
 
 def test_ui_inspection_does_not_change_market_incident_shock_or_repayment():
     app = _historical_app()
+    navigate(app, 'Decision')
     app.number_input(key='wallet_mitigation_funding').set_value(30000.0).run(timeout=20)
+    repayment_metrics = {m.label: m.value for m in app.metric}
+    navigate(app, 'Scenarios')
     market = (app.selectbox(key='wallet_incident').value, app.selectbox(key='wallet_stress_asset').value,
               app.slider(key='wallet_stress_shock').value)
     before_metrics = {m.label: m.value for m in app.metric}
@@ -230,17 +236,22 @@ def test_ui_inspection_does_not_change_market_incident_shock_or_repayment():
                       app.slider(key='wallet_stress_shock').value)
     assert {m.label: m.value for m in app.metric} == before_metrics
     assert not any(b.key == 'wallet_dependency_apply_market' for b in app.button)  # Debt-only dependency.
-    assert any('outside this inspected dependency scope' in c.value for c in app.caption)
     assert any('UNQUANTIFIED' in i.value for i in app.info)
     assert app.session_state.wallet_observation == observation
+    navigate(app, 'Dependencies')
+    assert any('outside this inspected dependency scope' in c.value for c in app.caption)
+    navigate(app, 'Decision')
+    assert {m.label: m.value for m in app.metric} == repayment_metrics
+    assert app.number_input(key='wallet_mitigation_funding').value == 30000.0
 
 
 def test_explicit_apply_links_to_existing_market_and_repayment_engines():
     observation = multiple_collateral()
     first, second = [a['reserve_address'] for a in observation['assets'][:2]]
-    app = AppTest.from_file(APP)
+    app = analysis_app(APP)
     app.session_state.wallet_observation = observation
     app.run(timeout=20)
+    navigate(app, 'Scenarios')
     app.selectbox(key='wallet_incident').set_value('oracle_source_outage').run(timeout=20)
     app.selectbox(key='wallet_dependency_inspection').set_value('token:' + second).run(timeout=20)
     assert app.selectbox(key='wallet_stress_asset').value == first
@@ -254,6 +265,7 @@ def test_explicit_apply_links_to_existing_market_and_repayment_engines():
     stress = analyze_wallet_stress(observation, second, -.3)
     mitigation = analyze_wallet_mitigation(observation, second, -.3, 0, 25)
     assert next(m.value for m in app.metric if m.label == 'Change in marked equity') == f"${stress['equity_change_usd']:,.2f}"
+    navigate(app, 'Decision')
     assert next(m.value for m in app.metric if m.label == 'Post-repay HF') == f"{mitigation['post_repayment']['health_factor']:.4f}"
 
 
@@ -265,6 +277,8 @@ def test_ui_unsupported_outages_keep_trace_but_no_financial_metrics(incident):
     assert not app.exception and not app.metric
     assert app.selectbox(key='wallet_incident').value == incident
     assert any('UNQUANTIFIED' in i.value for i in app.info)
+    navigate(app, 'Dependencies')
+    assert not app.metric
     assert any('Dependency trace:' in c.value for c in app.caption)
     assert app.get('plotly_chart')
 
@@ -274,9 +288,9 @@ def test_mode_isolation_and_snapshot_fixture_untouched():
     before = [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths]
     app = _historical_app()
     app.selectbox(key='wallet_dependency_inspection').set_value('ethereum').run(timeout=20)
-    app.radio(key='application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
+    control(app, 'application_mode').set_value('SYNTHETIC PLAYGROUND').run(timeout=20)
     assert not app.exception and not any(s.key == 'wallet_dependency_inspection' for s in app.selectbox)
-    app.radio(key='application_mode').set_value('REAL PORTFOLIO ANALYSIS').run(timeout=20)
+    control(app, 'application_mode').set_value('REAL PORTFOLIO ANALYSIS').run(timeout=20)
     assert not app.exception and app.selectbox(key='wallet_dependency_inspection').value == 'ethereum'
     assert app.checkbox(key='wallet_stress_replay').disabled
     assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in paths] == before

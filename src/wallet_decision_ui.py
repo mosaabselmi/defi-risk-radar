@@ -4,39 +4,39 @@ from src.wallet_decision import WalletDecisionAssumptions, compare_wallet_econom
 from src.presentation import metric_cards
 
 
-def render_wallet_decision(analysis):
+def render_wallet_decision(analysis, *, show_historical_banner=True):
     st.subheader('Conditional wallet economics · assumptions only')
     st.caption('Compare the modeled mark-to-market component with a hypothetical mitigation cost. '
                'Execution feasibility is unverified; this does not establish an executable full-wallet exit.')
     summary = st.container()
     with st.expander('User assumptions · edit probability, mitigation and transaction costs', expanded=False):
         left, right = st.columns(2)
-        probability = left.number_input('Assumed 24h scenario probability (%)', min_value=0.0, max_value=100.0, value=10.0, key='wallet_decision_probability')
-        avoided = right.number_input('Assumed downside avoided (%)', min_value=0.0, max_value=100.0, value=100.0, key='wallet_decision_avoidance')
+        probability = left.number_input('Assumed 24h scenario probability (%)', min_value=0.0, max_value=100.0, value=10.0, key='wallet_decision_probability', persist_state='session')
+        avoided = right.number_input('Assumed downside avoided (%)', min_value=0.0, max_value=100.0, value=100.0, key='wallet_decision_avoidance', persist_state='session')
         st.caption('Probability is a user assumption, not a measured incident rate. Avoidance is assumed efficacy, not a verified mitigation plan.')
-        notional = st.number_input('Aggregate assumed traded notional · USD', min_value=0.0, value=0.0, key='wallet_decision_notional')
+        notional = st.number_input('Aggregate assumed traded notional · USD', min_value=0.0, value=0.0, key='wallet_decision_notional', persist_state='session')
         st.caption('Enter the sum of notionals across assumed trading legs. Collateral value is not directly withdrawable liquidity; equity is not a traded notional.')
         a,b,c = st.columns(3)
-        spread = a.number_input('Assumed spread · bps', min_value=0.0, max_value=10000.0, value=5.0, key='wallet_decision_spread')
-        slippage = b.number_input('Assumed slippage · bps', min_value=0.0, max_value=10000.0, value=20.0, key='wallet_decision_slippage')
-        fee = c.number_input('Assumed trading fee · bps', min_value=0.0, max_value=10000.0, value=5.0, key='wallet_decision_fee')
-        gas = st.number_input('Assumed aggregate gas · USD', min_value=0.0, value=15.0, key='wallet_decision_gas')
+        spread = a.number_input('Assumed spread · bps', min_value=0.0, max_value=10000.0, value=5.0, key='wallet_decision_spread', persist_state='session')
+        slippage = b.number_input('Assumed slippage · bps', min_value=0.0, max_value=10000.0, value=20.0, key='wallet_decision_slippage', persist_state='session')
+        fee = c.number_input('Assumed trading fee · bps', min_value=0.0, max_value=10000.0, value=5.0, key='wallet_decision_fee', persist_state='session')
+        gas = st.number_input('Assumed aggregate gas · USD', min_value=0.0, value=15.0, key='wallet_decision_gas', persist_state='session')
     result = compare_wallet_economics(analysis, WalletDecisionAssumptions(probability,avoided,notional,spread,slippage,fee,gas))
     with summary:
         if not result['comparison_available']:
             st.warning(result['recommendation'])
             st.caption(result['reason'])
             return
-        if result['historical_replay']:
+        if result['historical_replay'] and show_historical_banner:
             st.warning('HISTORICAL / NOT LIVE · Retrospective economic comparison only.')
         st.warning(result['recommendation'])
         threshold = result['breakeven_probability']
         threshold_label = 'N/A' if threshold is None else f'{threshold*100:.2f}%'
         cards = metric_cards(4, key='wallet_economic_metrics')
-        cards[0].metric('Expected downside', f"${result['expected_scenario_downside_usd']:,.2f}", border=True)
-        cards[1].metric('Assumed avoidance', f"{result['assumptions']['avoided_downside_fraction']*100:.2f}%", border=True)
-        cards[2].metric('Hypothetical cost', f"${result['hypothetical_cost_usd']:,.2f}", border=True)
-        cards[3].metric('Break-even probability', threshold_label, border=True)
+        cards[0].metric('Expected downside', f"${result['expected_scenario_downside_usd']:,.2f}", border=False)
+        cards[1].metric('Assumed avoidance', f"{result['assumptions']['avoided_downside_fraction']*100:.2f}%", border=False)
+        cards[2].metric('Hypothetical cost', f"${result['hypothetical_cost_usd']:,.2f}", border=False)
+        cards[3].metric('Break-even probability', threshold_label, border=False)
         st.caption(f"Assumed 24h scenario probability: {result['assumptions']['probability']*100:.2f}% · "
                    f"Expected avoided downside: ${result['expected_avoided_downside_usd']:,.2f}. "
                    'Probability and avoidance are assumptions; stress marks are not realized losses and costs are not quotes.')

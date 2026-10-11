@@ -1,3 +1,4 @@
+from tests.ui_navigation import analysis_app, navigate
 """Presentation-only safeguards for zoom wrapping and graph evidence clarity."""
 from pathlib import Path
 
@@ -19,13 +20,16 @@ def test_native_metric_rows_wrap_with_content_height_and_readable_card_width(cou
                               ' card.metric("Marked equity", "$107,333.57", border=True)').run()
     assert not app.exception
     blocks = app.get('flex_container')
-    row = blocks[0].proto
+    row = blocks[1].proto
     assert row.flex_container.wrap
     assert row.height_config.use_content
-    assert all(card.proto.height_config.use_content for card in blocks[1:])
+    assert all(card.proto.height_config.use_stretch for card in blocks[2:])
     assert all(card.proto.width_config.use_stretch for card in blocks[1:])
     assert [m.value for m in app.metric] == ['$107,333.57'] * count
-    assert 'minmax(min(100%,260px),1fr)' in app.get('html')[0].proto.body
+    assert '@container (max-width:1050px)' in app.get('html')[0].proto.body
+    if count == 4:
+        assert 'repeat(4,minmax(0,1fr))' in app.get('html')[0].proto.body
+        assert 'repeat(2,minmax(0,1fr))' in app.get('html')[0].proto.body
 
 
 @pytest.mark.parametrize('theme', ['light', 'dark'])
@@ -60,23 +64,25 @@ def test_full_dependency_address_is_native_wrapping_copyable_code():
     assert 'address[:' not in text
 
 
-def test_replay_checkbox_explicitly_wraps_in_column_and_theme_refresh_is_retained():
+def test_replay_checkbox_explicitly_wraps_in_column_and_no_manual_theme_refresh():
     root = Path(__file__).resolve().parents[1]
-    app = AppTest.from_file(str(root / 'app.py')).run(timeout=20)
+    app = analysis_app(str(root / 'app.py')).run(timeout=20)
     app.button(key='wallet_load_historical_example').click().run(timeout=20)
     assert not app.exception
+    navigate(app, 'Scenarios')
     assert app.checkbox(key='wallet_stress_replay').proto.wrap
     assert any('HISTORICAL / NOT LIVE' in w.value for w in app.warning)
-    assert app.button(key='refresh_theme')
+    assert not any(b.key == 'refresh_theme' for b in app.button)
 
 
 def test_inspected_oracle_address_preserves_all_characters_and_observation():
     root = Path(__file__).resolve().parents[1]
     observation = load_historical_example()
-    app = AppTest.from_file(str(root / 'app.py'))
+    app = analysis_app(str(root / 'app.py'))
     app.session_state.wallet_observation = observation
     app.session_state.wallet_stress_replay = True
     app.run(timeout=20)
+    navigate(app, 'Dependencies')
     app.selectbox(key='wallet_dependency_inspection').set_value('oracle').run(timeout=20)
     assert not app.exception
     graph = build_wallet_graph(observation)
