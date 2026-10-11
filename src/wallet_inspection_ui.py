@@ -2,6 +2,7 @@
 import streamlit as st
 
 from src.wallet_inspection import inspect_wallet_dependency
+from src.wallet_failure_ui import render_failure_impact
 
 
 def select_dependency(observation, analysis):
@@ -39,44 +40,33 @@ def render_dependency_inspection(observation, analysis, inspection):
     else:
         st.caption('No separate contract address established for this component.')
     st.caption(inspection['reason'])
-    st.dataframe([{'Exposure': row['asset'], 'Supplied units': row['supplied_units'],
+    render_failure_impact(observation, analysis, inspection, on_apply=_apply_collateral)
+    with st.expander('Dependency trace · observed exposure paths', expanded=False):
+        st.dataframe([{'Exposure': row['asset'], 'Supplied units': row['supplied_units'],
                    'Enabled collateral units': row['enabled_collateral_units'], 'Outstanding debt units': row['debt_units'],
                    'Reachability / scope': row['scope']}
-                  for row in inspection['exposures']], hide_index=True, width='stretch')
-    if not inspection['exposures']:
-        st.info('No active asset exposure reaches this component in the captured graph. This does not establish absence of external risks.')
-    paths = inspection['position_paths']
-    for path in paths[:3]:
-        st.caption('Dependency trace: ' + ' → '.join(graph.nodes[n]['label'].replace('\n', ' ') for n in path))
-    if len(paths) > 3:
-        st.caption(f'{len(paths)} position-to-component paths; full paths and deduplicated relationships are in the evidence below.')
-    st.info('Dependency-failure economic impact: UNQUANTIFIED · Reachability does not imply a price shock or dollar loss.')
-    financial = analysis.get('financial')
-    if financial and financial.get('coverage'):
-        selected = financial['selected_reserve']
-        asset = next(a for a in observation['assets'] if a['reserve_address'] == selected)
-        matches = any(row['reserve_address'] == selected for row in inspection['exposures'])
-        hf = financial['stressed']['health_factor']
-        st.caption(f"Independent market scenario: {asset['symbol']} {financial['shock']*100:+.1f}% · "
-                   f"Stressed HF: {'N/A (no debt)' if hf is None else format(hf, '.4f')} · "
-                   f"Marked equity change: ${financial['equity_change_usd']:,.2f}. " +
-                   ('The selected collateral is among these potentially affected exposures. ' if matches else
-                    'The selected collateral is outside this inspected dependency scope. ') +
-                   'These scenario results are not attributed to a dependency outage. Repayment modeling below uses the same selected collateral and shock.')
-    else:
-        st.caption('Current incident economics: UNQUANTIFIED / INSUFFICIENT MODEL COVERAGE. No unsupported outage or missing-evidence loss is inferred.')
-    assets = {a['reserve_address']: a for a in observation['assets']}
-    collateral = {row['reserve_address']: row['asset'] for row in inspection['exposures']
-                  if row['collateral_enabled'] and int(assets[row['reserve_address']]['supplied_raw']) > 0}
-    if collateral:
-        key = 'wallet_dependency_market_target'
-        if st.session_state.get(key) not in collateral:
-            st.session_state.pop(key, None)
-        target = st.selectbox('Collateral for an explicit market-scenario switch', list(collateral),
-                              format_func=collateral.get, key=key)
-        st.button('Apply collateral to market scenario', on_click=_apply_collateral, args=(target,),
-                  key='wallet_dependency_apply_market')
-        st.caption('This explicit action selects a collateral market-price incident and preserves the entered shock. It does not simulate a feed failure.')
+                      for row in inspection['exposures']], hide_index=True, width='stretch')
+        if not inspection['exposures']:
+            st.info('No active asset exposure reaches this component in the captured graph. This does not establish absence of external risks.')
+        paths = inspection['position_paths']
+        for path in paths[:3]:
+            st.caption('Dependency trace: ' + ' → '.join(graph.nodes[n]['label'].replace('\n', ' ') for n in path))
+        if len(paths) > 3:
+            st.caption(f'{len(paths)} position-to-component paths; full paths and deduplicated relationships are in the evidence below.')
+        financial = analysis.get('financial')
+        if financial and financial.get('coverage'):
+            selected = financial['selected_reserve']
+            asset = next(a for a in observation['assets'] if a['reserve_address'] == selected)
+            matches = any(row['reserve_address'] == selected for row in inspection['exposures'])
+            hf = financial['stressed']['health_factor']
+            st.caption(f"Independent market scenario: {asset['symbol']} {financial['shock']*100:+.1f}% · "
+                       f"Stressed HF: {'N/A (no debt)' if hf is None else format(hf, '.4f')} · "
+                       f"Marked equity change: ${financial['equity_change_usd']:,.2f}. " +
+                       ('The selected collateral is among these potentially affected exposures. ' if matches else
+                        'The selected collateral is outside this inspected dependency scope. ') +
+                       'These scenario results are not attributed to a dependency outage. Repayment modeling below uses the same selected collateral and shock.')
+        else:
+            st.caption('Current incident economics: UNQUANTIFIED / INSUFFICIENT MODEL COVERAGE. No unsupported outage or missing-evidence loss is inferred.')
     with st.expander('Inspected dependency · full paths and pinned RPC provenance'):
         st.caption(f"Account {inspection['provenance']['wallet_address']} · block {inspection['provenance']['block']['number']:,} · "
                    f"Observed {inspection['provenance']['retrieved_at']} · hash {inspection['provenance']['block']['hash']}")
