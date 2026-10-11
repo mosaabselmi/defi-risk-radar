@@ -86,7 +86,13 @@ def test_disabled_supplies_equity_but_not_hf():
     assert result['baseline']['supplied_usd'] == 11000
     assert result['baseline']['collateral_usd'] == 10000
     assert result['baseline']['equity_usd'] == Decimal('4999.9')
-    assert not stress(observed, selected=rpc.reserves[1])['coverage']
+    # USDT is also borrowed: its disabled supply and debt both reprice, while
+    # its supplied amount remains excluded from borrowing power.
+    shocked = stress(observed, shock=0.1, selected=rpc.reserves[1])
+    assert shocked['coverage']
+    assert shocked['stressed']['collateral_usd'] == shocked['baseline']['collateral_usd']
+    assert shocked['stressed']['debt_usd'] > shocked['baseline']['debt_usd']
+    assert shocked['stressed']['equity_usd'] < shocked['baseline']['equity_usd']
 
 
 def multiple_collateral(convention='weighted thresholds'):

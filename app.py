@@ -36,14 +36,56 @@ presentation_css = '''
 .st-key-home_capabilities {margin-top:1.5rem;align-items:stretch;}
 .st-key-home_capabilities > div {height:100%;}
 .product-subtitle {font-size:.8rem;opacity:.65;letter-spacing:.06em;margin-top:.25rem;}
-.brand-mark {display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid currentColor;border-radius:9px;margin-right:10px;font-size:1rem;}
+.brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border: 1px solid currentColor;
+    border-radius: 13px;
+    margin-right: 14px;
+    font-size: 1.6rem;
+    vertical-align: middle;
+}
 .st-key-application_mode {margin:.5rem 0 .4rem;}
 .st-key-analysis_section {padding-bottom:.8rem;border-bottom:1px solid color-mix(in srgb,currentColor 18%,transparent);margin-bottom:.5rem;}
 .st-key-analysis_section button[aria-checked="true"],
 .st-key-application_mode button[aria-checked="true"],
 .st-key-wallet_dependency_view button[aria-checked="true"] {color:inherit !important;font-weight:700;background:color-mix(in srgb,currentColor 10%,transparent);box-shadow:inset 0 -3px 0 currentColor;}
 
-.product-wordmark {font-size:1.2rem;font-weight:650;letter-spacing:-.025em;margin:0 0 .7rem;color:inherit;}
+.product-wordmark {
+    font-size: clamp(2rem, 3.4vw, 2.8rem);
+    font-weight: 750;
+    letter-spacing: -0.04em;
+    line-height: 1.2;
+    margin: 0 0 1.2rem;
+    color: inherit;
+}
+/* Center Home / Analyze / About relative to the viewport */
+@media (min-width: 900px) {
+    .stAppHeader .rc-overflow {
+        position: fixed !important;
+        left: 50% !important;
+        top: 0.5rem;
+        transform: translateX(-50%) !important;
+        width: max-content !important;
+        margin: 0 !important;
+        display: flex !important;
+        justify-content: center !important;
+        z-index: 10;
+    }
+}
+
+/* Keep Streamlit's normal navigation positioning on mobile */
+@media (max-width: 899px) {
+    .stAppHeader .rc-overflow {
+        position: static !important;
+        transform: none !important;
+        width: auto !important;
+        margin: 0 !important;
+    }
+}
 .landing-hero {max-width:1040px;padding:1.4rem 0 .8rem;}
 .landing-hero h1 {font-size:clamp(2.4rem,4.2vw,4.4rem);font-weight:650;letter-spacing:-.045em;line-height:1.12;margin:.6rem 0 1.1rem;color:inherit;}
 .landing-hero p {max-width:740px;font-size:1.1rem;line-height:1.65;color:inherit;}

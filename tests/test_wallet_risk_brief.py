@@ -28,7 +28,7 @@ def test_fixture_brief_respects_wallet_assets_roles_and_historical_coverage():
     assert scenarios[0]['quantification'] == 'SUPPORTED SCENARIO'
     assert scenarios[0]['evidence'] == 'VERIFIED PATH'
     assert {'USDT', 'GHO'} == {s['exposures'][0]['asset'] for s in scenarios if s['kind'] == 'asset_price'}
-    assert all(s['exposures'][0]['roles'] == ['debt'] and s['quantification'] == 'UNSUPPORTED / UNKNOWN'
+    assert all(s['exposures'][0]['roles'] == ['debt'] and s['quantification'] == 'SUPPORTED SCENARIO'
                for s in scenarios if s['kind'] == 'asset_price')
     assert {r['asset'] for s in scenarios if s['kind'] == 'aave_oracle' for r in s['exposures']} == {'WETH', 'USDT', 'GHO'}
     source_scenarios = [s for s in scenarios if s['kind'] == 'oracle_source']
@@ -39,7 +39,8 @@ def test_fixture_brief_respects_wallet_assets_roles_and_historical_coverage():
             address for address, node in graph.graph['source_nodes'].items() if node == source['component']}
         assert all(path[0] == 'position' and path[-1] == source['component'] for path in source['paths'])
     assert all('probability' not in s and 'loss_usd' not in s for s in scenarios)
-    assert all(s['quantification'] != 'SUPPORTED SCENARIO' for s in scenarios if s['kind'] != 'collateral_price')
+    assert all(s['quantification'] != 'SUPPORTED SCENARIO' for s in scenarios
+               if s['kind'] not in ('collateral_price', 'asset_price'))
     assert next(s for s in discover_scenarios(observation, graph) if s['kind'] == 'collateral_price')['quantification'] == 'UNSUPPORTED / UNKNOWN'  # stale by default
 
 
