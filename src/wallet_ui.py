@@ -17,6 +17,8 @@ from src.wallet_failure_ui import render_failure_impact
 from src.website import open_analysis
 from src.wallet_replay import load_historical_example, EXPECTED_SHA256, FIXTURE_VERSION
 from src.presentation import metric_cards, responsive_row, theme_chart
+from src.wallet_risk_brief_ui import (clear_investigation, render_brief, render_selected,
+                                      scenario_list, selected_investigation)
 
 
 PUBLIC_EXAMPLE = '0x24a416e5c00c7b47a5f8a300984579b53919330b'
@@ -124,7 +126,7 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
         with st.container(border=True):
             st.markdown('#### Incident scenario')
             incident_column, asset_column = st.columns(2, gap='medium')
-            incident = incident_column.selectbox('Real-wallet incident', list(incidents), format_func=incidents.get, key='wallet_incident', persist_state='session')
+            incident = incident_column.selectbox('Real-wallet incident', list(incidents), format_func=incidents.get, key='wallet_incident', persist_state='session', on_change=clear_investigation)
             choices = {a['reserve_address']: a for a in observation['assets']
                        if incident != 'market_price' or a['collateral_enabled'] and int(a['supplied_raw']) > 0}
             if not choices:
@@ -135,9 +137,9 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
             if st.session_state.get('wallet_stress_asset') not in choices:
                 st.session_state.pop('wallet_stress_asset', None)
             selected = asset_column.selectbox('Enabled wallet collateral to shock' if incident == 'market_price' else 'Wallet exposure to inspect', list(choices),
-                format_func=lambda address: choices[address]['symbol'] + ' · ' + address[:8] + '…' + address[-4:], key='wallet_stress_asset', persist_state='session')
+                format_func=lambda address: choices[address]['symbol'] + ' · ' + address[:8] + '…' + address[-4:], key='wallet_stress_asset', persist_state='session', on_change=clear_investigation)
             shock_column, replay_column = st.columns([2,1], vertical_alignment='center')
-            shock = shock_column.slider('Wallet collateral market-price shock (%)', -95, 100, -30, key='wallet_stress_shock', disabled=incident != 'market_price', persist_state='session')
+            shock = shock_column.slider('Wallet collateral market-price shock (%)', -95, 100, -30, key='wallet_stress_shock', disabled=incident != 'market_price', persist_state='session', on_change=clear_investigation)
             if force_historical_replay:
                 st.session_state.wallet_stress_replay = True
             replay = replay_column.checkbox('Historical scenario replay · NOT LIVE', key='wallet_stress_replay',
@@ -162,6 +164,9 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
     st.session_state.wallet_analysis_inputs = {'asset':selected, 'incident':incident, 'shock':shock, 'replay':replay}
     linked = analyze_wallet_incident(observation, selected, incident, shock / 100, historical_replay=replay)
     result = linked['financial']
+    scenarios = scenario_list(observation, linked, replay=replay)
+    investigation = selected_investigation(observation, scenarios)
+    brief_unquantified = investigation is not None and investigation['quantification'] != 'SUPPORTED SCENARIO'
     if overview is not None:
         with overview:
             if replay and not force_historical_replay and section is None:
@@ -207,10 +212,16 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
                         st.caption('Stress-model coverage: COMPLETE · Baseline reconciled against Aave. Only enabled collateral contributes to HF. '
                                    'Execution decision: UNAVAILABLE · ' + result['status'])
                         st.caption(f"Stressed HF range: {after['health_factor_min']:.10f}–{after['health_factor_max']:.10f} · HF = 1 is the eligibility boundary.")
+        if section == 'Overview':
+            render_brief(observation, scenarios)
         st.caption('Selected scenario: ' + choices[selected]['symbol'] + f' {shock:+d}%' if incident == 'market_price' else 'Selected technical incident: ' + incidents[incident])
         st.button('Explore this scenario', on_click=open_analysis, args=('Scenarios',), key='overview_scenarios')
     if section == 'Scenarios':
-        if result is None or not result.get('coverage'):
+        render_selected(investigation, result)
+        if brief_unquantified:
+            st.caption('The independent market-price settings above are retained, but do not quantify this selected investigation. '
+                       'Change a market control to resume that calculation.')
+        elif result is None or not result.get('coverage'):
             st.warning(linked['status'] if result is None else result['status'])
             st.info('Financial impact: UNQUANTIFIED. Technical disruption is not a price crash.')
         else:
@@ -230,21 +241,25 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
                 render_failure_impact(observation, linked, inspection, on_apply=_apply_collateral)
     if section in (None, 'Dependencies'):
         _render_graph(observation, linked, selected, incident, shock, incidents, include_failure=section is None)
-    if section in (None, 'Scenarios'):
+    if section in (None, 'Scenarios') and not brief_unquantified:
         render_wallet_safety(observation, linked)
     st.session_state.wallet_analysis_result = linked
     if result is None or not result['coverage']:
         if section == 'Decision':
+            render_selected(investigation, result, decision=True)
             st.warning('MONITOR / INSUFFICIENT MODEL COVERAGE')
             st.caption('Conditional economics and repayment are unavailable for this incident or evidence. No executable decision is inferred.')
         if section in (None, 'Evidence'):
             _render_relationship_evidence(linked, selected, incident, shock, incidents)
         return
     if section in (None, 'Decision'):
-        render_wallet_decision(linked, show_historical_banner=section is None)
-        render_wallet_mitigation(observation, linked)
         if section == 'Decision':
-            render_wallet_safety(observation, linked)
+            render_selected(investigation, result, decision=True)
+        if investigation is None or investigation['quantification'] == 'SUPPORTED SCENARIO':
+            render_wallet_decision(linked, show_historical_banner=section is None)
+            render_wallet_mitigation(observation, linked)
+            if section == 'Decision':
+                render_wallet_safety(observation, linked)
     if section in (None, 'Evidence'):
         before, after = result['baseline'], result['stressed']
         with st.expander('Portfolio arithmetic and model limitations'):
