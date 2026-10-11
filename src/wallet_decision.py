@@ -39,6 +39,7 @@ def compare_wallet_economics(analysis, assumptions):
     """
     unavailable = {'comparison_available': False, 'recommendation': 'MONITOR / EXECUTION NOT VERIFIED',
                    'execution_status': 'UNVERIFIED', 'current_actionable': False,
+                   'model_preference': 'INSUFFICIENT DATA',
                    'expected_scenario_downside_usd': None, 'hypothetical_cost_usd': None}
     try:
         with localcontext() as context:
@@ -77,6 +78,11 @@ def _compare(analysis, assumptions, unavailable):
                   'Trading fee': notional*fee/10000, 'Gas': gas}
     cost = sum(components.values(), Decimal(0))
     margin = benefit - cost
+    # Compare alternatives over the same assumed 24h horizon. The hypothetical
+    # EXIT branch retains any downside the user assumes mitigation cannot avoid.
+    residual = expected - benefit
+    exit_total = residual + cost
+    preference = 'EXIT' if margin > 0 else 'STAY' if margin < 0 else 'INDIFFERENT'
     conclusion = 'EXPECTED AVOIDED DOWNSIDE EXCEEDS ASSUMED COST' if margin > 0 else 'ASSUMED COST EXCEEDS EXPECTED AVOIDED DOWNSIDE' if margin < 0 else 'BREAK-EVEN UNDER ASSUMPTIONS'
     threshold = cost / avoidable if avoidable else None
     required_avoidance = cost / expected if expected else None
@@ -101,6 +107,8 @@ def _compare(analysis, assumptions, unavailable):
             'mark_to_market_downside_usd': downside, 'favorable_stress_usd': favorable,
             'expected_scenario_downside_usd': expected, 'expected_favorable_usd': expected_favorable,
             'expected_avoided_downside_usd': benefit, 'hypothetical_cost_usd': cost,
+            'stay_modeled_cost_usd': expected, 'exit_modeled_cost_usd': exit_total,
+            'residual_expected_downside_usd': residual, 'model_preference': preference,
             'cost_components': components, 'conditional_margin_usd': margin,
             'breakeven_probability': threshold, 'breakeven_probability_reachable': threshold is not None and threshold <= 1,
             'required_avoidance_fraction': required_avoidance,

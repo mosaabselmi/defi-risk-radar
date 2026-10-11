@@ -253,10 +253,11 @@ def render_wallet_stress(observation, *, force_historical_replay=False, section=
             _render_relationship_evidence(linked, selected, incident, shock, incidents)
         return
     if section in (None, 'Decision'):
-        if section == 'Decision':
+        if section == 'Decision' and investigation is not None and investigation['quantification'] != 'SUPPORTED SCENARIO':
             render_selected(investigation, result, decision=True)
         if investigation is None or investigation['quantification'] == 'SUPPORTED SCENARIO':
-            render_wallet_decision(linked, show_historical_banner=section is None)
+            render_wallet_decision(linked, show_historical_banner=section is None,
+                                   investigation_name=investigation['name'] if investigation else None)
             render_wallet_mitigation(observation, linked)
             if section == 'Decision':
                 render_wallet_safety(observation, linked)

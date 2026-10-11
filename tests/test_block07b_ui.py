@@ -30,11 +30,11 @@ def test_wallet_economics_exposes_assumptions_and_break_even_without_actionable_
     app.run()
     assert not app.exception
     values = {metric.label: metric.value for metric in app.metric}
-    assert values == {'Expected downside': '$300.00', 'Assumed avoidance': '100.00%',
-                      'Hypothetical cost': '$63.00', 'Break-even probability': '2.10%'}
+    assert values == {'STAY · modeled 24h downside': '$300.00', 'EXIT · hypothetical total': '$63.00'}
     assert any('EXECUTION NOT VERIFIED' in warning.value for warning in app.warning)
-    assert any('Assumed 24h scenario probability: 10.00%' in caption.value for caption in app.caption)
+    assert any('STAY = 10.00% assumed 24h probability' in caption.value for caption in app.caption)
     assert any('DEBT REPAYMENT CONSTRAINT' in warning.value for warning in app.warning)
     app.number_input(key='wallet_decision_avoidance').set_value(50.5).run()
     assert not app.exception
-    assert next(metric.value for metric in app.metric if metric.label == 'Assumed avoidance') == '50.50%'
+    assert next(metric.value for metric in app.metric if metric.label.startswith('EXIT')) == '$211.50'
+    assert any('50.50% assumed avoidance' in caption.value for caption in app.caption)
